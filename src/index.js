@@ -146,7 +146,7 @@ client.once("clientReady", () => {
             {
                 name: "https://k7devs.com",
                 type: 1,
-                url: "https://www.twitch.tv/k7devs"
+                url: "https://kick.com/iik27"
             }
         ],
         status: "online"
