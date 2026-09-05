@@ -26,13 +26,12 @@ const {
 } = require("./services/kickChecker");
 
 // ==========================================
-// ENVIRONMENT
+// ENV
 // ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-const MONGODB_URI = process.env.MONGODB_URI;
 
 const PORT = process.env.PORT || 5000;
 
@@ -42,39 +41,73 @@ const PORT = process.env.PORT || 5000;
 
 console.log("🔎 Checking environment...");
 
+console.log(
+    `🔐 Token: ${TOKEN ? "FOUND" : "MISSING"}`
+);
+
+console.log(
+    `🆔 Client ID: ${CLIENT_ID ? "FOUND" : "MISSING"}`
+);
+
+console.log(
+    `🏠 Guild ID: ${GUILD_ID ? "FOUND" : "MISSING"}`
+);
+
+console.log(
+    `🍃 MongoDB: ${
+        process.env.MONGODB_URI
+            ? "FOUND"
+            : "MISSING"
+    }`
+);
+
 if (!TOKEN) {
-    console.error("❌ DISCORD_TOKEN is missing.");
+    throw new Error(
+        "DISCORD_TOKEN is missing."
+    );
 }
 
 if (!CLIENT_ID) {
-    console.error("❌ CLIENT_ID is missing.");
+    throw new Error(
+        "CLIENT_ID is missing."
+    );
 }
 
 if (!GUILD_ID) {
-    console.error("❌ GUILD_ID is missing.");
+    throw new Error(
+        "GUILD_ID is missing."
+    );
 }
 
-if (!MONGODB_URI) {
-    console.error("❌ MONGODB_URI is missing.");
+if (!process.env.MONGODB_URI) {
+    throw new Error(
+        "MONGODB_URI is missing."
+    );
 }
 
 // ==========================================
-// HOSTINGER WEB SERVER
+// WEB SERVER
 // ==========================================
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(
+    (req, res) => {
 
-    res.writeHead(200, {
-        "Content-Type": "text/plain"
-    });
+        res.writeHead(200, {
+            "Content-Type":
+                "text/plain"
+        });
 
-    res.end("K7Devs Discord bot is online!");
-});
+        res.end(
+            "K7Devs Discord bot is online!"
+        );
+    }
+);
 
 server.listen(
     PORT,
     "0.0.0.0",
     () => {
+
         console.log(
             `🌐 Web server listening on ${PORT}`
         );
@@ -92,7 +125,7 @@ const client = new Client({
 });
 
 // ==========================================
-// /LIVE
+// COMMANDS
 // ==========================================
 
 const liveCommand =
@@ -116,7 +149,7 @@ const liveCommand =
                     option
                         .setName("link")
                         .setDescription(
-                            "Your KICK channel link"
+                            "KICK channel link"
                         )
                         .setRequired(true)
                 )
@@ -125,7 +158,7 @@ const liveCommand =
                     option
                         .setName("channel")
                         .setDescription(
-                            "Discord channel for alerts"
+                            "Discord alert channel"
                         )
                         .addChannelTypes(
                             ChannelType.GuildText,
@@ -143,26 +176,15 @@ const liveCommand =
                 )
         );
 
-// ==========================================
-// /LIVECHECK
-// ==========================================
-
 const liveCheckCommand =
     new SlashCommandBuilder()
         .setName("livecheck")
         .setDescription(
-            "Check if iik27 is currently live on KICK"
+            "Check if iik27 is live on KICK"
         );
 
 // ==========================================
-// /BUSINESS
-// ==========================================
-//
-// This loads your existing business.js.
-// Make sure the file exists at:
-//
-// commands/utility/business.js
-//
+// BUSINESS COMMAND
 // ==========================================
 
 let businessCommand = null;
@@ -175,20 +197,20 @@ try {
         );
 
     console.log(
-        "✅ Loaded /business"
+        "✅ /business loaded"
     );
 
 } catch (error) {
 
-    console.error(
-        "⚠️ Could not load /business:"
+    console.log(
+        "⚠️ /business could not be loaded."
     );
 
     console.error(error);
 }
 
 // ==========================================
-// COMMAND LIST
+// COMMAND ARRAY
 // ==========================================
 
 const commands = [
@@ -200,26 +222,25 @@ if (
     businessCommand &&
     businessCommand.data
 ) {
+
     commands.push(
         businessCommand.data.toJSON()
     );
 }
 
-console.log("");
 console.log(
-    `📦 ${commands.length} command(s) prepared`
+    `📦 ${commands.length} commands ready`
 );
 
 for (const command of commands) {
+
     console.log(
         `📋 /${command.name}`
     );
 }
 
-console.log("");
-
 // ==========================================
-// REGISTER DISCORD COMMANDS
+// REGISTER COMMANDS
 // ==========================================
 
 async function registerCommands() {
@@ -228,31 +249,12 @@ async function registerCommands() {
         "📋 Registering Discord commands..."
     );
 
+    const rest = new REST({
+        version: "10",
+        timeout: 10000
+    }).setToken(TOKEN);
+
     try {
-
-        if (!TOKEN) {
-            throw new Error(
-                "DISCORD_TOKEN is missing."
-            );
-        }
-
-        if (!CLIENT_ID) {
-            throw new Error(
-                "CLIENT_ID is missing."
-            );
-        }
-
-        if (!GUILD_ID) {
-            throw new Error(
-                "GUILD_ID is missing."
-            );
-        }
-
-        const rest =
-            new REST({
-                version: "10",
-                timeout: 15000
-            }).setToken(TOKEN);
 
         const result =
             await rest.put(
@@ -265,41 +267,30 @@ async function registerCommands() {
                 }
             );
 
-        console.log("");
         console.log(
-            "================================"
-        );
-        console.log(
-            "✅ DISCORD COMMANDS REGISTERED"
-        );
-        console.log(
-            `📦 ${result.length} commands registered`
+            "✅ Discord commands registered!"
         );
 
-        for (const command of result) {
+        console.log(
+            `📦 ${result.length} command(s)`
+        );
+
+        for (
+            const command of result
+        ) {
 
             console.log(
                 `✅ /${command.name}`
             );
         }
 
-        console.log(
-            "================================"
-        );
-        console.log("");
-
-        return true;
-
     } catch (error) {
 
-        console.error("");
         console.error(
-            "❌ COMMAND REGISTRATION FAILED"
+            "❌ Command registration failed:"
         );
 
         console.error(error);
-
-        return false;
     }
 }
 
@@ -307,7 +298,9 @@ async function registerCommands() {
 // KICK API
 // ==========================================
 
-async function getKickChannel(username) {
+async function getKickChannel(
+    username
+) {
 
     try {
 
@@ -342,15 +335,13 @@ async function getKickChannel(username) {
 }
 
 // ==========================================
-// /LIVECHECK HANDLER
+// /LIVECHECK
 // ==========================================
 
 async function handleLiveCheck(
     interaction
 ) {
 
-    // IMPORTANT:
-    // Reply immediately.
     await interaction.deferReply();
 
     const username = "iik27";
@@ -358,7 +349,7 @@ async function handleLiveCheck(
     try {
 
         console.log(
-            `📺 Checking KICK status for ${username}...`
+            `📺 Checking ${username}...`
         );
 
         const data =
@@ -369,69 +360,55 @@ async function handleLiveCheck(
         if (!data) {
 
             return interaction.editReply(
-                "❌ I couldn't reach KICK right now. Please try again."
+                "❌ KICK could not be reached right now."
             );
         }
 
         const isLive =
-            data.livestream !== null &&
-            data.livestream !== undefined;
-
-        // ======================================
-        // OFFLINE
-        // ======================================
+            data.livestream != null;
 
         if (!isLive) {
 
             console.log(
-                `⚫ ${username} is NOT live.`
+                `⚫ ${username} is offline.`
             );
 
-            const embed =
-                new EmbedBuilder()
-                    .setColor(0x2b2d31)
-                    .setTitle(
-                        "⚫ KICK Live Check"
-                    )
-                    .setDescription(
-                        `**${username} is not live right now.**`
-                    )
-                    .setURL(
-                        `https://kick.com/${username}`
-                    )
-                    .setFooter({
-                        text:
-                            "K7Devs • KICK Live Check"
-                    })
-                    .setTimestamp();
-
             return interaction.editReply({
-                embeds: [embed]
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor(0x2b2d31)
+                        .setTitle(
+                            "⚫ KICK Live Check"
+                        )
+                        .setDescription(
+                            `**${username} is not live right now.**`
+                        )
+                        .setURL(
+                            `https://kick.com/${username}`
+                        )
+                        .setTimestamp()
+                ]
             });
         }
 
-        // ======================================
-        // LIVE
-        // ======================================
-
-        const livestream =
-            data.livestream || {};
+        const stream =
+            data.livestream;
 
         const title =
-            livestream.session_title ||
-            livestream.stream_title ||
+            stream.session_title ||
+            stream.stream_title ||
             "Live now!";
 
         const category =
-            livestream.category?.name ||
+            stream.category?.name ||
             "Unknown";
 
         const viewers =
-            livestream.viewer_count ?? 0;
+            stream.viewer_count ?? 0;
 
         const thumbnail =
-            livestream.thumbnail?.url ||
-            livestream.thumbnail ||
+            stream.thumbnail?.url ||
+            stream.thumbnail ||
             null;
 
         const embed =
@@ -444,7 +421,7 @@ async function handleLiveCheck(
                     `https://kick.com/${username}`
                 )
                 .setDescription(
-                    `**${username} is currently live on KICK!**`
+                    "**iik27 is currently live on KICK!**"
                 )
                 .addFields(
                     {
@@ -453,8 +430,7 @@ async function handleLiveCheck(
                             String(title).slice(
                                 0,
                                 1024
-                            ),
-                        inline: false
+                            )
                     },
                     {
                         name: "🎮 Category",
@@ -472,10 +448,6 @@ async function handleLiveCheck(
                         inline: true
                     }
                 )
-                .setFooter({
-                    text:
-                        "K7Devs • KICK Live Check"
-                })
                 .setTimestamp();
 
         if (thumbnail) {
@@ -486,7 +458,7 @@ async function handleLiveCheck(
         }
 
         console.log(
-            `🔴 ${username} IS LIVE!`
+            `🔴 ${username} is LIVE!`
         );
 
         return interaction.editReply({
@@ -496,26 +468,25 @@ async function handleLiveCheck(
     } catch (error) {
 
         console.error(
-            "❌ /livecheck failed:"
+            "❌ /livecheck error:",
+            error
         );
 
-        console.error(error);
-
         return interaction.editReply(
-            "❌ Something went wrong while checking KICK."
+            "❌ Error checking KICK."
         ).catch(() => {});
     }
 }
 
 // ==========================================
-// /LIVE HANDLER
+// /LIVE
 // ==========================================
 
 async function handleLive(
     interaction
 ) {
 
-    // Respond immediately.
+    // MUST happen immediately
     await interaction.deferReply({
         ephemeral: true
     });
@@ -524,10 +495,6 @@ async function handleLive(
 
         const subcommand =
             interaction.options.getSubcommand();
-
-        // ======================================
-        // SETUP
-        // ======================================
 
         if (
             subcommand === "setup"
@@ -552,7 +519,7 @@ async function handleLive(
             } catch {
 
                 return interaction.editReply(
-                    "❌ Invalid URL. Example: `https://kick.com/iik27`"
+                    "❌ Invalid KICK URL."
                 );
             }
 
@@ -565,7 +532,7 @@ async function handleLive(
             ) {
 
                 return interaction.editReply(
-                    "❌ Please provide a KICK URL such as `https://kick.com/iik27`."
+                    "❌ Please use a KICK URL."
                 );
             }
 
@@ -577,51 +544,33 @@ async function handleLive(
             if (!username) {
 
                 return interaction.editReply(
-                    "❌ I couldn't find the KICK username."
+                    "❌ KICK username not found."
                 );
             }
-
-            console.log(
-                `📺 Setting up KICK: ${username}`
-            );
 
             const config =
                 await getGuildConfig(
                     interaction.guildId
                 );
 
-            // IMPORTANT:
-            // Your MongoDB schema uses kickLive.
             config.kickLive = {
                 enabled: true,
-
                 username:
                     username.toLowerCase(),
-
                 channelId:
                     channel.id,
-
                 lastLive: false
             };
 
             await config.save();
 
-            console.log(
-                "✅ KICK configuration saved"
-            );
-
             return interaction.editReply(
                 `🔴 **KICK live alerts enabled!**\n\n` +
-                `🎥 **Streamer:** ${username}\n` +
-                `📢 **Alert channel:** ${channel}\n` +
-                `🔗 **KICK:** https://kick.com/${username}\n\n` +
-                `🔄 Checking every 60 seconds.`
+                `🎥 Streamer: **${username}**\n` +
+                `📢 Channel: ${channel}\n` +
+                `🔗 https://kick.com/${username}`
             );
         }
-
-        // ======================================
-        // DISABLE
-        // ======================================
 
         if (
             subcommand === "disable"
@@ -653,30 +602,25 @@ async function handleLive(
             await config.save();
 
             return interaction.editReply(
-                "✅ **KICK live alerts disabled.**"
+                "✅ KICK live alerts disabled."
             );
         }
-
-        return interaction.editReply(
-            "❌ Unknown `/live` option."
-        );
 
     } catch (error) {
 
         console.error(
-            "❌ /live ERROR:"
+            "❌ /live error:",
+            error
         );
 
-        console.error(error);
-
         return interaction.editReply(
-            "❌ Something went wrong configuring KICK live alerts."
+            "❌ Something went wrong."
         ).catch(() => {});
     }
 }
 
 // ==========================================
-// INTERACTION HANDLER
+// INTERACTIONS
 // ==========================================
 
 client.on(
@@ -693,40 +637,25 @@ client.on(
             `📥 Received /${interaction.commandName}`
         );
 
-        // ======================================
-        // LIVE
-        // ======================================
-
         if (
-            interaction.commandName === "live"
+            interaction.commandName ===
+            "live"
         ) {
 
-            await handleLive(
+            return handleLive(
                 interaction
             );
-
-            return;
         }
-
-        // ======================================
-        // LIVECHECK
-        // ======================================
 
         if (
             interaction.commandName ===
             "livecheck"
         ) {
 
-            await handleLiveCheck(
+            return handleLiveCheck(
                 interaction
             );
-
-            return;
         }
-
-        // ======================================
-        // BUSINESS
-        // ======================================
 
         if (
             interaction.commandName ===
@@ -741,21 +670,21 @@ client.on(
 
                 return interaction.reply({
                     content:
-                        "❌ The business command could not be loaded.",
+                        "❌ Business command is unavailable.",
                     ephemeral: true
                 });
             }
 
             try {
 
-                await businessCommand.execute(
+                return await businessCommand.execute(
                     interaction
                 );
 
             } catch (error) {
 
                 console.error(
-                    "❌ /business ERROR:",
+                    "❌ /business error:",
                     error
                 );
 
@@ -764,30 +693,19 @@ client.on(
                     interaction.deferred
                 ) {
 
-                    await interaction.editReply(
+                    return interaction.editReply(
                         "❌ Something went wrong."
                     ).catch(() => {});
 
-                } else {
-
-                    await interaction.reply({
-                        content:
-                            "❌ Something went wrong.",
-                        ephemeral: true
-                    }).catch(() => {});
                 }
+
+                return interaction.reply({
+                    content:
+                        "❌ Something went wrong.",
+                    ephemeral: true
+                }).catch(() => {});
             }
-
-            return;
         }
-
-        // ======================================
-        // UNKNOWN
-        // ======================================
-
-        console.log(
-            `⚠️ Unknown command: /${interaction.commandName}`
-        );
     }
 );
 
@@ -796,16 +714,18 @@ client.on(
 // ==========================================
 
 client.once(
-    "clientReady",
+    "ready",
     async () => {
 
         console.log("");
         console.log(
             "================================"
         );
+
         console.log(
             "       DISCORD CONNECTED"
         );
+
         console.log(
             "================================"
         );
@@ -819,55 +739,36 @@ client.once(
         );
 
         // ======================================
-        // STREAMING STATUS
+        // STREAMING
         // ======================================
 
-        try {
+        client.user.setPresence({
 
-            client.user.setPresence({
+            activities: [
+                {
+                    name:
+                        "Made by iik27",
 
-                activities: [
-                    {
-                        name:
-                            "Made by iik27",
+                    type:
+                        ActivityType.Streaming,
 
-                        type:
-                            ActivityType.Streaming,
+                    url:
+                        "https://kick.com/iik27"
+                }
+            ],
 
-                        url:
-                            "https://kick.com/iik27"
-                    }
-                ],
+            status: "online"
+        });
 
-                status: "online"
-            });
-
-            console.log(
-                "🔴 Streaming status enabled!"
-            );
-
-        } catch (error) {
-
-            console.error(
-                "❌ Failed to set streaming status:",
-                error
-            );
-        }
+        console.log(
+            "🔴 Streaming status enabled!"
+        );
 
         // ======================================
         // REGISTER COMMANDS
         // ======================================
 
-        const registered =
-            await registerCommands();
-
-        if (!registered) {
-
-            console.error(
-                "⚠️ Commands could not be registered."
-            );
-
-        }
+        await registerCommands();
 
         // ======================================
         // KICK CHECKER
@@ -886,16 +787,15 @@ client.once(
         } catch (error) {
 
             console.error(
-                "❌ KICK checker failed:"
+                "❌ KICK checker failed:",
+                error
             );
-
-            console.error(error);
         }
     }
 );
 
 // ==========================================
-// DISCORD ERROR
+// DISCORD ERRORS
 // ==========================================
 
 client.on(
@@ -903,91 +803,34 @@ client.on(
     error => {
 
         console.error(
-            "❌ Discord client error:"
+            "❌ Discord error:",
+            error
         );
-
-        console.error(error);
     }
 );
-
-// ==========================================
-// DISCONNECT
-// ==========================================
 
 client.on(
-    "shardDisconnect",
-    (event, shardId) => {
+    "warn",
+    warning => {
 
-        console.error(
-            `⚠️ Discord disconnected. Shard: ${shardId}`
-        );
-
-        console.error(event);
-    }
-);
-
-// ==========================================
-// RECONNECT
-// ==========================================
-
-client.on(
-    "shardReconnecting",
-    shardId => {
-
-        console.log(
-            `🔄 Discord reconnecting. Shard: ${shardId}`
+        console.warn(
+            "⚠️ Discord warning:",
+            warning
         );
     }
 );
 
 // ==========================================
-// START BOT
+// LOGIN
 // ==========================================
 
 async function start() {
 
     try {
 
-        console.log("");
         console.log(
             "🚀 Starting Discord bot..."
         );
-
-        // ======================================
-        // ENV VALIDATION
-        // ======================================
-
-        if (!TOKEN) {
-
-            throw new Error(
-                "DISCORD_TOKEN is missing."
-            );
-        }
-
-        if (!CLIENT_ID) {
-
-            throw new Error(
-                "CLIENT_ID is missing."
-            );
-        }
-
-        if (!GUILD_ID) {
-
-            throw new Error(
-                "GUILD_ID is missing."
-            );
-        }
-
-        if (!MONGODB_URI) {
-
-            throw new Error(
-                "MONGODB_URI is missing."
-            );
-        }
-
-        // ======================================
-        // DATABASE
-        // ======================================
 
         console.log(
             "🍃 Connecting to MongoDB..."
@@ -999,17 +842,50 @@ async function start() {
             "✅ MongoDB connected!"
         );
 
-        // ======================================
-        // DISCORD
-        // ======================================
-
         console.log(
             "🔐 Connecting to Discord..."
         );
 
-        await client.login(
-            TOKEN
-        );
+        // ======================================
+        // LOGIN TIMEOUT
+        // ======================================
+
+        const loginTimeout =
+            setTimeout(() => {
+
+                console.error("");
+                console.error(
+                    "❌ DISCORD LOGIN TIMEOUT"
+                );
+                console.error(
+                    "Discord did not complete the connection within 30 seconds."
+                );
+                console.error(
+                    "Check your DISCORD_TOKEN and Hostinger network configuration."
+                );
+
+                process.exit(1);
+
+            }, 30000);
+
+        try {
+
+            await client.login(
+                TOKEN
+            );
+
+            clearTimeout(
+                loginTimeout
+            );
+
+        } catch (error) {
+
+            clearTimeout(
+                loginTimeout
+            );
+
+            throw error;
+        }
 
     } catch (error) {
 
@@ -1017,47 +893,20 @@ async function start() {
         console.error(
             "================================"
         );
+
         console.error(
             "❌ BOT STARTUP FAILED"
         );
+
         console.error(
             "================================"
         );
 
         console.error(error);
 
-        // Don't silently keep a broken process
-        process.exitCode = 1;
+        process.exit(1);
     }
 }
-
-// ==========================================
-// PROCESS ERRORS
-// ==========================================
-
-process.on(
-    "unhandledRejection",
-    error => {
-
-        console.error(
-            "❌ Unhandled promise rejection:"
-        );
-
-        console.error(error);
-    }
-);
-
-process.on(
-    "uncaughtException",
-    error => {
-
-        console.error(
-            "❌ Uncaught exception:"
-        );
-
-        console.error(error);
-    }
-);
 
 // ==========================================
 // START
