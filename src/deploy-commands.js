@@ -5,47 +5,67 @@ const {
     Routes
 } = require("discord.js");
 
-const liveCommand = require("./commands/utility/kick");
+const liveCommand =
+    require("./commands/utility/kick");
 
 const commands = [
     liveCommand.data.toJSON()
 ];
 
-const rest = new REST({ version: "10" })
-    .setToken(process.env.DISCORD_TOKEN);
+async function deploy() {
+    const token = process.env.DISCORD_TOKEN;
+    const clientId = process.env.CLIENT_ID;
+    const guildId = process.env.GUILD_ID;
 
-async function deployCommands() {
-    try {
-        if (!process.env.DISCORD_TOKEN) {
-            throw new Error("DISCORD_TOKEN is missing.");
-        }
+    console.log("================================");
+    console.log("      DISCORD COMMAND DEPLOY");
+    console.log("================================");
 
-        if (!process.env.CLIENT_ID) {
-            throw new Error("CLIENT_ID is missing.");
-        }
-
-        if (!process.env.GUILD_ID) {
-            throw new Error("GUILD_ID is missing.");
-        }
-
-        console.log("🔄 Registering /live...");
-
-        await rest.put(
-            Routes.applicationGuildCommands(
-                process.env.CLIENT_ID,
-                process.env.GUILD_ID
-            ),
-            {
-                body: commands
-            }
+    if (!token) {
+        throw new Error(
+            "DISCORD_TOKEN is missing."
         );
-
-        console.log("✅ /live registered successfully!");
-    } catch (error) {
-        console.error("❌ Failed to register /live:");
-        console.error(error);
-        process.exit(1);
     }
+
+    if (!clientId) {
+        throw new Error(
+            "CLIENT_ID is missing."
+        );
+    }
+
+    if (!guildId) {
+        throw new Error(
+            "GUILD_ID is missing."
+        );
+    }
+
+    console.log("Client ID:", clientId);
+    console.log("Guild ID:", guildId);
+    console.log("Commands:", commands.map(c => c.name));
+
+    const rest = new REST({
+        version: "10"
+    }).setToken(token);
+
+    await rest.put(
+        Routes.applicationGuildCommands(
+            clientId,
+            guildId
+        ),
+        {
+            body: commands
+        }
+    );
+
+    console.log("");
+    console.log("================================");
+    console.log("       /live REGISTERED");
+    console.log("================================");
 }
 
-deployCommands();
+deploy().catch(error => {
+    console.error("");
+    console.error("❌ DEPLOY FAILED");
+    console.error(error);
+    process.exit(1);
+});
