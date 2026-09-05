@@ -10,130 +10,164 @@ const {
 
 const commands = [];
 
-function findCommands(directory) {
+function loadCommands(directory) {
     if (!fs.existsSync(directory)) {
+        console.error(
+            `❌ Commands folder not found: ${directory}`
+        );
         return;
     }
 
-    const files = fs.readdirSync(directory);
+    const files = fs.readdirSync(
+        directory,
+        { withFileTypes: true }
+    );
 
     for (const file of files) {
-        const filePath = path.join(
-            directory,
-            file
-        );
 
-        const stat = fs.statSync(filePath);
+        const filePath =
+            path.join(directory, file.name);
 
-        if (stat.isDirectory()) {
-            findCommands(filePath);
+        if (file.isDirectory()) {
+            loadCommands(filePath);
             continue;
         }
 
-        if (!file.endsWith(".js")) {
+        if (!file.name.endsWith(".js")) {
             continue;
         }
 
         try {
-            const command = require(filePath);
+            const command =
+                require(filePath);
 
-            if (
-                command.data &&
-                typeof command.execute === "function"
-            ) {
-                commands.push(
-                    command.data.toJSON()
-                );
-
+            if (!command.data) {
                 console.log(
-                    `✅ Found /${command.data.name}`
+                    `⚠️ Skipping ${filePath}`
                 );
+                continue;
             }
-        } catch (error) {
-            console.error(
-                `❌ Could not load ${filePath}`
+
+            commands.push(
+                command.data.toJSON()
             );
 
+            console.log(
+                `📦 Preparing /${command.data.name}`
+            );
+
+        } catch (error) {
+            console.error(
+                `❌ Failed loading ${filePath}`
+            );
             console.error(error);
         }
     }
 }
 
-findCommands(
+loadCommands(
     path.join(__dirname, "commands")
 );
 
-async function deploy() {
-    const {
-        DISCORD_TOKEN,
-        CLIENT_ID,
-        GUILD_ID
-    } = process.env;
+console.log("");
+console.log(
+    `📦 ${commands.length} commands ready to deploy`
+);
 
-    if (!DISCORD_TOKEN) {
-        throw new Error(
-            "DISCORD_TOKEN is missing"
-        );
-    }
+// ==========================================
+// ENVIRONMENT VARIABLES
+// ==========================================
 
-    if (!CLIENT_ID) {
-        throw new Error(
-            "CLIENT_ID is missing"
-        );
-    }
+const token =
+    process.env.DISCORD_TOKEN;
 
-    if (!GUILD_ID) {
-        throw new Error(
-            "GUILD_ID is missing"
-        );
-    }
+const clientId =
+    process.env.DISCORD_CLIENT_ID;
 
-    console.log("");
-    console.log(
-        `📦 ${commands.length} commands found`
-    );
+const guildId =
+    process.env.DISCORD_GUILD_ID;
 
-    console.log(
-        commands
-            .map(command => `/${command.name}`)
-            .join(", ")
-    );
-
-    const rest = new REST({
-        version: "10"
-    }).setToken(DISCORD_TOKEN);
-
-    console.log("");
-    console.log(
-        "🚀 Registering commands..."
-    );
-
-    await rest.put(
-        Routes.applicationGuildCommands(
-            CLIENT_ID,
-            GUILD_ID
-        ),
-        {
-            body: commands
-        }
-    );
-
-    console.log("");
-    console.log(
-        "✅ Commands registered successfully!"
-    );
-
-    console.log(
-        "🎉 /live is now registered!"
+if (!token) {
+    throw new Error(
+        "❌ DISCORD_TOKEN is missing."
     );
 }
 
-deploy().catch(error => {
-    console.error(
-        "❌ Command deployment failed:"
+if (!clientId) {
+    throw new Error(
+        "❌ DISCORD_CLIENT_ID is missing."
     );
+}
 
-    console.error(error);
+if (!guildId) {
+    throw new Error(
+        "❌ DISCORD_GUILD_ID is missing."
+    );
+}
 
-    process.exit(1);
-});
+// ==========================================
+// DEPLOY
+// ==========================================
+
+const rest = new REST({
+    version: "10"
+}).setToken(token);
+
+async function deploy() {
+
+    try {
+
+        console.log("");
+        console.log(
+            "🚀 Registering Discord commands..."
+        );
+
+        console.log(
+            `🤖 Client ID: ${clientId}`
+        );
+
+        console.log(
+            `🏠 Guild ID: ${guildId}`
+        );
+
+        await rest.put(
+            Routes.applicationGuildCommands(
+                clientId,
+                guildId
+            ),
+            {
+                body: commands
+            }
+        );
+
+        console.log("");
+        console.log(
+            "================================"
+        );
+        console.log(
+            "✅ COMMANDS REGISTERED!"
+        );
+        console.log(
+            "================================"
+        );
+
+        console.log(
+            `📦 Registered ${commands.length} commands`
+        );
+
+        console.log(
+            `📋 ${commands.map(c => "/" + c.name).join(", ")}`
+        );
+
+    } catch (error) {
+
+        console.error("");
+        console.error(
+            "❌ COMMAND DEPLOYMENT FAILED"
+        );
+
+        console.error(error);
+    }
+}
+
+deploy();
