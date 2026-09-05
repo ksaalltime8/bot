@@ -8,6 +8,13 @@ const guildConfigSchema = new mongoose.Schema(
             unique: true
         },
 
+        // Discord moderation / other kick data
+        kick: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+        },
+
+        // KICK.COM LIVE SYSTEM
         kickLive: {
             enabled: {
                 type: Boolean,
@@ -30,6 +37,7 @@ const guildConfigSchema = new mongoose.Schema(
             }
         }
     },
+
     {
         timestamps: true
     }
@@ -43,7 +51,8 @@ const GuildConfig =
     );
 
 async function connectDatabase() {
-    const uri = process.env.MONGODB_URI;
+    const uri =
+        process.env.MONGODB_URI;
 
     if (!uri) {
         throw new Error(
@@ -60,11 +69,13 @@ async function connectDatabase() {
 async function getGuildConfig(guildId) {
     return GuildConfig.findOneAndUpdate(
         { guildId },
+
         {
             $setOnInsert: {
                 guildId
             }
         },
+
         {
             new: true,
             upsert: true
