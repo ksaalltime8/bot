@@ -1,7 +1,7 @@
 {
   "name": "all-in-one-discord-bot",
   "version": "1.0.0",
-  "description": "Modular all-in-one Discord bot",
+  "description": "All-in-one Discord bot with MongoDB and KICK live alerts",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -9,9 +9,10 @@
     "deploy": "node src/deploy-commands.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
+    "axios": "^1.8.4",
     "discord.js": "^14.16.3",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "mongoose": "^9.9.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
