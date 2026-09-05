@@ -23,12 +23,12 @@ const guildConfigSchema = new mongoose.Schema(
 
             username: {
                 type: String,
-                default: ""
+                default: null
             },
 
             channelId: {
                 type: String,
-                default: ""
+                default: null
             },
 
             lastLive: {
