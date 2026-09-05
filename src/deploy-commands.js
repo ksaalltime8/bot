@@ -6,7 +6,7 @@ const {
 } = require("discord.js");
 
 const kickCommand =
-    require("./commands/kick");
+    require("./commands/utility/kick");
 
 const commands = [
     kickCommand.data.toJSON()
