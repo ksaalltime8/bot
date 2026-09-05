@@ -46,57 +46,109 @@ client.commands = new Collection();
 // LOAD COMMANDS
 // ==========================================
 
+// ==========================================
+// LOAD COMMANDS
+// ==========================================
+
+client.commands = new Collection();
+
 function loadCommands(directory) {
+
     if (!fs.existsSync(directory)) {
-        console.log(`⚠️ Commands folder missing: ${directory}`);
+        console.error(
+            `❌ Commands folder does not exist: ${directory}`
+        );
         return;
     }
 
-    const files = fs.readdirSync(directory);
+    const entries = fs.readdirSync(
+        directory,
+        { withFileTypes: true }
+    );
 
-    for (const file of files) {
-        const filePath = path.join(directory, file);
-        const stat = fs.statSync(filePath);
+    for (const entry of entries) {
 
-        if (stat.isDirectory()) {
-            loadCommands(filePath);
+        const fullPath =
+            path.join(directory, entry.name);
+
+        // Enter subfolders
+        if (entry.isDirectory()) {
+            loadCommands(fullPath);
             continue;
         }
 
-        if (!file.endsWith(".js")) {
+        // Only JavaScript files
+        if (!entry.name.endsWith(".js")) {
             continue;
         }
 
         try {
-            delete require.cache[require.resolve(filePath)];
 
-            const command = require(filePath);
+            delete require.cache[
+                require.resolve(fullPath)
+            ];
+
+            const command =
+                require(fullPath);
 
             if (
-                command.data &&
-                typeof command.execute === "function"
+                !command.data ||
+                typeof command.execute !== "function"
             ) {
-                const name = command.data.name;
-
-                client.commands.set(name, command);
-
-                console.log(`✅ Loaded /${name}`);
+                console.warn(
+                    `⚠️ Skipping invalid command: ${fullPath}`
+                );
+                continue;
             }
 
+            const commandName =
+                command.data.name;
+
+            client.commands.set(
+                commandName,
+                command
+            );
+
+            console.log(
+                `✅ Loaded /${commandName} ← ${fullPath}`
+            );
+
         } catch (error) {
-            console.error(`❌ Failed loading ${filePath}`);
+
+            console.error(
+                `❌ Failed loading: ${fullPath}`
+            );
+
             console.error(error);
         }
     }
 }
 
-loadCommands(
-    path.join(__dirname, "commands")
-);
+const commandsPath =
+    path.join(__dirname, "commands");
 
 console.log(
-    `📦 ${client.commands.size} commands loaded`
+    `📂 Loading commands from: ${commandsPath}`
 );
+
+loadCommands(commandsPath);
+
+console.log("");
+console.log(
+    "================================"
+);
+console.log(
+    `📦 TOTAL COMMANDS: ${client.commands.size}`
+);
+console.log(
+    `📋 COMMAND LIST: ${[
+        ...client.commands.keys()
+    ].join(", ")}`
+);
+console.log(
+    "================================"
+);
+
 
 // ==========================================
 // REGISTER COMMANDS WITH DISCORD
