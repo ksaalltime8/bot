@@ -162,69 +162,50 @@ client.on("interactionCreate", async interaction => {
     }
 
     console.log(
-        `📥 Received /${interaction.commandName}`
+        `📥 RECEIVED /${interaction.commandName}`
     );
 
-    const command = client.commands.get(
-        interaction.commandName
-    );
-
-    if (!command) {
-        console.error(
-            `❌ Command /${interaction.commandName} not found`
+    const command =
+        client.commands.get(
+            interaction.commandName
         );
 
-        if (!interaction.replied) {
-            await interaction.reply({
-                content: "❌ Command not loaded.",
-                ephemeral: true
-            }).catch(() => {});
-        }
+    if (!command) {
+        console.log(
+            `❌ COMMAND NOT FOUND: ${interaction.commandName}`
+        );
 
         return;
     }
 
     try {
-
         await command.execute(interaction);
-
-        console.log(
-            `✅ /${interaction.commandName} finished`
-        );
-
     } catch (error) {
-
         console.error(
-            `❌ /${interaction.commandName} ERROR`
+            `❌ COMMAND ERROR /${interaction.commandName}`,
+            error
         );
-
-        console.error(error);
 
         try {
-
             if (
-                interaction.replied ||
-                interaction.deferred
+                interaction.deferred ||
+                interaction.replied
             ) {
-
-                await interaction.followUp({
+                await interaction.editReply({
                     content:
-                        "❌ Something went wrong while running this command.",
-                    ephemeral: true
+                        "❌ Command failed."
                 });
-
             } else {
-
                 await interaction.reply({
                     content:
-                        "❌ Something went wrong while running this command.",
+                        "❌ Command failed.",
                     ephemeral: true
                 });
             }
-
         } catch {}
     }
 });
+
 
 // ==========================================
 // DISCORD READY
