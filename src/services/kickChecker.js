@@ -1,8 +1,5 @@
 const axios = require("axios");
-
-const {
-    GuildConfig
-} = require("../database/mongodb");
+const { GuildConfig } = require("../database/mongodb");
 
 const CHECK_INTERVAL = 60 * 1000;
 
@@ -13,10 +10,8 @@ async function getKickChannel(username) {
             {
                 headers: {
                     Accept: "application/json",
-                    "User-Agent":
-                        "Mozilla/5.0 DiscordBot"
+                    "User-Agent": "Mozilla/5.0 DiscordBot"
                 },
-
                 timeout: 10000
             }
         );
@@ -25,8 +20,7 @@ async function getKickChannel(username) {
     } catch (error) {
         console.error(
             `❌ KICK check failed for ${username}:`,
-            error.response?.status ||
-                error.message
+            error.response?.status || error.message
         );
 
         return null;
@@ -34,75 +28,95 @@ async function getKickChannel(username) {
 }
 
 async function checkKick(client) {
-    const configs = await GuildConfig.find({
-        "kick.enabled": true,
-        "kick.username": {
-            $ne: null
-        },
-        "kick.channelId": {
-            $ne: null
-        }
-    });
+    let configs;
+
+    try {
+        configs = await GuildConfig.find({
+            "kickLive.enabled": true,
+            "kickLive.username": {
+                $exists: true,
+                $ne: ""
+            },
+            "kickLive.channelId": {
+                $exists: true,
+                $ne: ""
+            }
+        });
+    } catch (error) {
+        console.error(
+            "❌ Failed to load KICK configurations:",
+            error
+        );
+        return;
+    }
+
+    console.log(
+        `📺 Checking ${configs.length} KICK live configuration(s)...`
+    );
 
     for (const config of configs) {
         try {
-            const username =
-                config.kick.username;
+            const liveConfig = config.kickLive;
 
-            const data =
-                await getKickChannel(username);
+            if (!liveConfig) {
+                continue;
+            }
+
+            const username = liveConfig.username;
+
+            const data = await getKickChannel(username);
 
             if (!data) {
                 continue;
             }
 
-            const livestream =
-                data.livestream || null;
-
             const isLive =
                 data.livestream !== null &&
                 data.livestream !== undefined;
 
-            /*
-             * User just went LIVE.
-             */
+            // ==========================================
+            // WENT LIVE
+            // ==========================================
+
             if (
                 isLive &&
-                !config.kick.lastLive
+                !liveConfig.lastLive
             ) {
+                console.log(
+                    `🔴 ${username} is LIVE!`
+                );
+
                 await sendLiveMessage(
                     client,
                     config,
                     data
                 );
 
-                config.kick.lastLive = true;
+                liveConfig.lastLive = true;
 
                 await config.save();
-
-                console.log(
-                    `🔴 ${username} is LIVE`
-                );
             }
 
-            /*
-             * User went OFFLINE.
-             */
+            // ==========================================
+            // WENT OFFLINE
+            // ==========================================
+
             else if (
                 !isLive &&
-                config.kick.lastLive
+                liveConfig.lastLive
             ) {
-                config.kick.lastLive = false;
+                console.log(
+                    `⚫ ${username} went offline.`
+                );
+
+                liveConfig.lastLive = false;
 
                 await config.save();
-
-                console.log(
-                    `⚫ ${username} is offline`
-                );
             }
+
         } catch (error) {
             console.error(
-                `❌ Error checking ${config.kick.username}:`,
+                `❌ Error checking KICK user for guild ${config.guildId}:`,
                 error
             );
         }
@@ -114,110 +128,118 @@ async function sendLiveMessage(
     config,
     data
 ) {
-    const guild =
-        client.guilds.cache.get(
-            config.guildId
-        );
+    try {
+        const guild =
+            client.guilds.cache.get(
+                config.guildId
+            );
 
-    if (!guild) {
-        console.log(
-            `⚠️ Guild ${config.guildId} not found.`
-        );
+        if (!guild) {
+            console.log(
+                `⚠️ Guild ${config.guildId} not found.`
+            );
+            return;
+        }
 
-        return;
-    }
+        const channel =
+            guild.channels.cache.get(
+                config.kickLive.channelId
+            );
 
-    const channel =
-        guild.channels.cache.get(
-            config.kick.channelId
-        );
+        if (!channel) {
+            console.log(
+                `⚠️ KICK alert channel not found in ${guild.name}.`
+            );
+            return;
+        }
 
-    if (!channel) {
-        console.log(
-            `⚠️ Alert channel not found in ${guild.name}.`
-        );
+        const livestream =
+            data.livestream || {};
 
-        return;
-    }
+        const username =
+            data.slug ||
+            data.username ||
+            config.kickLive.username;
 
-    const livestream =
-        data.livestream || {};
+        const title =
+            livestream.session_title ||
+            livestream.stream_title ||
+            "Live now!";
 
-    const username =
-        data.slug ||
-        data.username ||
-        config.kick.username;
+        const category =
+            livestream.category?.name ||
+            "Unknown";
 
-    const title =
-        livestream.session_title ||
-        livestream.stream_title ||
-        "Live now!";
+        const viewerCount =
+            livestream.viewer_count ?? 0;
 
-    const category =
-        livestream.category?.name ||
-        "Unknown";
+        const thumbnail =
+            livestream.thumbnail?.url ||
+            livestream.thumbnail ||
+            null;
 
-    const viewerCount =
-        livestream.viewer_count ?? 0;
+        const kickUrl =
+            `https://kick.com/${username}`;
 
-    const thumbnail =
-        livestream.thumbnail?.url ||
-        livestream.thumbnail ||
-        null;
+        const embed = {
+            color: 0x53fc18,
 
-    const kickUrl =
-        `https://kick.com/${username}`;
+            title: `🔴 ${username} is LIVE!`,
 
-    const embed = {
-        color: 0x53fc18,
+            url: kickUrl,
 
-        title: `🔴 ${username} is LIVE!`,
+            description:
+                `**${username}** just went live on KICK!`,
 
-        url: kickUrl,
+            fields: [
+                {
+                    name: "🎮 Category",
+                    value: String(category),
+                    inline: true
+                },
+                {
+                    name: "👀 Viewers",
+                    value: String(viewerCount),
+                    inline: true
+                },
+                {
+                    name: "📝 Title",
+                    value: String(title),
+                    inline: false
+                }
+            ],
 
-        description:
-            `**${username}** just went live on KICK!`,
-
-        fields: [
-            {
-                name: "🎮 Category",
-                value: category,
-                inline: true
+            footer: {
+                text: "KICK Live Alert"
             },
 
-            {
-                name: "👀 Viewers",
-                value: String(viewerCount),
-                inline: true
-            },
-
-            {
-                name: "📝 Title",
-                value: title,
-                inline: false
-            }
-        ],
-
-        footer: {
-            text: "KICK Live Alert"
-        },
-
-        timestamp:
-            new Date().toISOString()
-    };
-
-    if (thumbnail) {
-        embed.image = {
-            url: thumbnail
+            timestamp:
+                new Date().toISOString()
         };
+
+        if (thumbnail) {
+            embed.image = {
+                url: thumbnail
+            };
+        }
+
+        await channel.send({
+            content:
+                `🔴 **${username} is LIVE!**\n${kickUrl}`,
+
+            embeds: [embed]
+        });
+
+        console.log(
+            `📢 KICK live alert sent for ${username}`
+        );
+
+    } catch (error) {
+        console.error(
+            "❌ Failed to send KICK live message:",
+            error
+        );
     }
-
-    await channel.send({
-        content:
-            `🔴 **${username} is LIVE!**\n${kickUrl}`,
-
-        embeds: [embed]
-    });
 }
 
 function startKickChecker(client) {
@@ -225,24 +247,26 @@ function startKickChecker(client) {
         "📺 KICK checker started."
     );
 
-    /*
-     * Check immediately.
-     */
-    checkKick(client).catch(console.error);
+    // Check immediately.
+    checkKick(client).catch(error => {
+        console.error(
+            "❌ Initial KICK check failed:",
+            error
+        );
+    });
 
-    /*
-     * Then every 60 seconds.
-     */
-    setInterval(
-        () => {
-            checkKick(client).catch(
-                console.error
+    // Check every 60 seconds.
+    setInterval(() => {
+        checkKick(client).catch(error => {
+            console.error(
+                "❌ KICK scheduled check failed:",
+                error
             );
-        },
-        CHECK_INTERVAL
-    );
+        });
+    }, CHECK_INTERVAL);
 }
 
 module.exports = {
-    startKickChecker
+    startKickChecker,
+    checkKick
 };
