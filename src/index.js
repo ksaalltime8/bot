@@ -16,7 +16,7 @@ const {
 } = require("./services/kickChecker");
 
 const liveCommand =
-    require("./commands/utility/kick");
+    require("./commands/utility/live");
 
 // ==========================================
 // HOSTINGER WEB SERVER
