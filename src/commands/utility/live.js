@@ -4,9 +4,8 @@ const {
     ChannelType
 } = require("discord.js");
 
-const {
-    getGuildConfig
-} = require("../../database/mongodb");
+const { getGuildConfig } =
+    require("../../database/mongodb");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -17,18 +16,20 @@ module.exports = {
             sub
                 .setName("setup")
                 .setDescription("Set up KICK live alerts")
-
                 .addStringOption(option =>
                     option
                         .setName("link")
-                        .setDescription("Your KICK channel link")
+                        .setDescription(
+                            "Your KICK channel link"
+                        )
                         .setRequired(true)
                 )
-
                 .addChannelOption(option =>
                     option
                         .setName("channel")
-                        .setDescription("Discord channel for live alerts")
+                        .setDescription(
+                            "Discord channel for live alerts"
+                        )
                         .addChannelTypes(
                             ChannelType.GuildText,
                             ChannelType.GuildAnnouncement
@@ -40,7 +41,9 @@ module.exports = {
         .addSubcommand(sub =>
             sub
                 .setName("disable")
-                .setDescription("Disable KICK live alerts")
+                .setDescription(
+                    "Disable KICK live alerts"
+                )
         )
 
         .setDefaultMemberPermissions(
@@ -48,32 +51,38 @@ module.exports = {
         ),
 
     async execute(interaction) {
-
-        await interaction.deferReply({
-            ephemeral: true
-        });
-
         try {
+            // Acknowledge Discord immediately.
+            await interaction.deferReply({
+                ephemeral: true
+            });
 
             const subcommand =
                 interaction.options.getSubcommand();
+
+            console.log(
+                `📺 /live ${subcommand} received`
+            );
 
             const config =
                 await getGuildConfig(
                     interaction.guildId
                 );
 
-            // ==========================================
+            // ================================
             // SETUP
-            // ==========================================
+            // ================================
 
             if (subcommand === "setup") {
-
                 const link =
-                    interaction.options.getString("link");
+                    interaction.options.getString(
+                        "link"
+                    );
 
                 const channel =
-                    interaction.options.getChannel("channel");
+                    interaction.options.getChannel(
+                        "channel"
+                    );
 
                 let url;
 
@@ -108,37 +117,33 @@ module.exports = {
                     );
                 }
 
-                // Save KICK LIVE configuration
+                // Save ONLY the live-stream settings.
                 config.kickLive.enabled = true;
+
                 config.kickLive.username =
                     username.toLowerCase();
+
                 config.kickLive.channelId =
                     channel.id;
+
                 config.kickLive.lastLive = false;
 
                 await config.save();
 
-                // Verify what MongoDB saved
-                const verify =
-                    await getGuildConfig(
-                        interaction.guildId
-                    );
-
                 console.log(
                     "================================"
                 );
-                console.log("📺 KICK LIVE CONFIG SAVED");
                 console.log(
-                    `Guild: ${interaction.guildId}`
+                    "📺 KICK LIVE CONFIG SAVED"
                 );
                 console.log(
-                    `Username: ${verify.kickLive?.username}`
+                    `Username: ${config.kickLive.username}`
                 );
                 console.log(
-                    `Channel: ${verify.kickLive?.channelId}`
+                    `Channel: ${config.kickLive.channelId}`
                 );
                 console.log(
-                    `Enabled: ${verify.kickLive?.enabled}`
+                    `Enabled: ${config.kickLive.enabled}`
                 );
                 console.log(
                     "================================"
@@ -153,12 +158,11 @@ module.exports = {
                 );
             }
 
-            // ==========================================
+            // ================================
             // DISABLE
-            // ==========================================
+            // ================================
 
             if (subcommand === "disable") {
-
                 config.kickLive.enabled = false;
                 config.kickLive.lastLive = false;
 
@@ -173,20 +177,28 @@ module.exports = {
                 );
             }
 
-            return interaction.editReply(
-                "❌ Unknown `/live` command."
-            );
-
         } catch (error) {
-
             console.error(
-                "❌ /live ERROR:",
+                "❌ /live command error:",
                 error
             );
 
-            return interaction.editReply(
-                "❌ Something went wrong. Check the Hostinger console."
-            ).catch(() => {});
+            try {
+                if (
+                    interaction.deferred ||
+                    interaction.replied
+                ) {
+                    await interaction.editReply(
+                        "❌ Something went wrong. Check the Hostinger console."
+                    );
+                } else {
+                    await interaction.reply({
+                        content:
+                            "❌ Something went wrong.",
+                        ephemeral: true
+                    });
+                }
+            } catch {}
         }
     }
 };
