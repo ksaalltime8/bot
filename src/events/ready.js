@@ -6,16 +6,17 @@ module.exports = {
         console.log(`✅ Logged in as ${client.user.tag}`);
         console.log(`🌐 Serving ${client.guilds.cache.size} server(s)`);
 
- client.user.setPresence({
+client.user.setPresence({
     activities: [
         {
             name: "K7Devs Live",
             type: 1,
-            url: "https://k7devs.com"
+            url: "https://kick.com/iik27"
         }
     ],
     status: "online"
 });
+
 
 
     }
