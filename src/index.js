@@ -23,7 +23,7 @@ const {
 } = require("./services/kickChecker");
 
 // ==========================================
-// ENV
+// ENVIRONMENT
 // ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -35,11 +35,11 @@ if (!TOKEN) {
 }
 
 if (!CLIENT_ID) {
-    console.error("❌ DISCORD_CLIENT_ID is missing.");
+    console.error("❌ CLIENT_ID is missing.");
 }
 
 if (!GUILD_ID) {
-    console.error("❌ DISCORD_GUILD_ID is missing.");
+    console.error("❌ GUILD_ID is missing.");
 }
 
 // ==========================================
@@ -71,7 +71,7 @@ const client = new Client({
 });
 
 // ==========================================
-// ONLY COMMAND: /live
+// /LIVE COMMAND
 // ==========================================
 
 const liveCommand = new SlashCommandBuilder()
@@ -118,18 +118,31 @@ const liveCommand = new SlashCommandBuilder()
     );
 
 // ==========================================
-// REGISTER /LIVE DIRECTLY
+// /BUSINESS COMMAND
 // ==========================================
 
-async function registerLiveCommand() {
+const businessCommand = require(
+    "./commands/utility/business"
+);
+
+// ==========================================
+// REGISTER COMMANDS
+// ==========================================
+
+async function registerCommands() {
 
     try {
 
-        console.log("📋 Registering /live...");
+        console.log("📋 Registering Discord commands...");
 
         const rest = new REST({
             version: "10"
         }).setToken(TOKEN);
+
+        const commands = [
+            liveCommand.toJSON(),
+            businessCommand.data.toJSON()
+        ];
 
         const result = await rest.put(
             Routes.applicationGuildCommands(
@@ -137,24 +150,38 @@ async function registerLiveCommand() {
                 GUILD_ID
             ),
             {
-                body: [
-                    liveCommand.toJSON()
-                ]
+                body: commands
             }
         );
 
         console.log(
-            `✅ /live registered successfully!`
+            "================================"
         );
 
         console.log(
-            `📦 Discord now has ${result.length} command(s)`
+            "✅ DISCORD COMMANDS REGISTERED"
+        );
+
+        console.log(
+            `📦 ${result.length} commands registered`
+        );
+
+        console.log(
+            "📋 /live"
+        );
+
+        console.log(
+            "📋 /business"
+        );
+
+        console.log(
+            "================================"
         );
 
     } catch (error) {
 
         console.error(
-            "❌ Failed to register /live:"
+            "❌ Failed to register Discord commands:"
         );
 
         console.error(error);
@@ -162,28 +189,73 @@ async function registerLiveCommand() {
 }
 
 // ==========================================
-// /LIVE HANDLER
+// INTERACTION HANDLER
 // ==========================================
 
 client.on(
     "interactionCreate",
     async interaction => {
 
-        if (
-            !interaction.isChatInputCommand()
-        ) {
+        if (!interaction.isChatInputCommand()) {
             return;
         }
+
+        console.log(
+            `📥 Received /${interaction.commandName}`
+        );
+
+        // ======================================
+        // /BUSINESS
+        // ======================================
+
+        if (
+            interaction.commandName === "business"
+        ) {
+
+            try {
+
+                await businessCommand.execute(
+                    interaction
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "❌ /business error:",
+                    error
+                );
+
+                if (
+                    interaction.deferred ||
+                    interaction.replied
+                ) {
+
+                    await interaction.editReply(
+                        "❌ Something went wrong."
+                    ).catch(() => {});
+
+                } else {
+
+                    await interaction.reply({
+                        content:
+                            "❌ Something went wrong.",
+                        ephemeral: true
+                    }).catch(() => {});
+                }
+            }
+
+            return;
+        }
+
+        // ======================================
+        // /LIVE
+        // ======================================
 
         if (
             interaction.commandName !== "live"
         ) {
             return;
         }
-
-        console.log(
-            `📥 Received /live from ${interaction.user.tag}`
-        );
 
         try {
 
@@ -194,11 +266,13 @@ client.on(
             const subcommand =
                 interaction.options.getSubcommand();
 
-            // ======================================
-            // SETUP
-            // ======================================
+            // ==================================
+            // LIVE SETUP
+            // ==================================
 
-            if (subcommand === "setup") {
+            if (
+                subcommand === "setup"
+            ) {
 
                 const link =
                     interaction.options.getString(
@@ -213,7 +287,9 @@ client.on(
                 let url;
 
                 try {
+
                     url = new URL(link);
+
                 } catch {
 
                     return interaction.editReply(
@@ -266,7 +342,7 @@ client.on(
                 await config.save();
 
                 console.log(
-                    `✅ KICK configuration saved`
+                    "✅ KICK configuration saved."
                 );
 
                 return interaction.editReply(
@@ -278,11 +354,13 @@ client.on(
                 );
             }
 
-            // ======================================
-            // DISABLE
-            // ======================================
+            // ==================================
+            // LIVE DISABLE
+            // ==================================
 
-            if (subcommand === "disable") {
+            if (
+                subcommand === "disable"
+            ) {
 
                 const config =
                     await getGuildConfig(
@@ -294,6 +372,10 @@ client.on(
 
                 await config.save();
 
+                console.log(
+                    "🛑 KICK live alerts disabled."
+                );
+
                 return interaction.editReply(
                     "✅ **KICK live alerts disabled.**"
                 );
@@ -302,9 +384,10 @@ client.on(
         } catch (error) {
 
             console.error(
-                "❌ /live error:",
-                error
+                "❌ /live error:"
             );
+
+            console.error(error);
 
             if (
                 interaction.deferred ||
@@ -312,7 +395,7 @@ client.on(
             ) {
 
                 await interaction.editReply(
-                    "❌ Something went wrong."
+                    "❌ Something went wrong while processing `/live`."
                 ).catch(() => {});
 
             } else {
@@ -328,7 +411,7 @@ client.on(
 );
 
 // ==========================================
-// READY
+// DISCORD READY
 // ==========================================
 
 client.once(
@@ -336,12 +419,15 @@ client.once(
     async () => {
 
         console.log("");
+
         console.log(
             "================================"
         );
+
         console.log(
             "       DISCORD CONNECTED"
         );
+
         console.log(
             "================================"
         );
@@ -374,10 +460,10 @@ client.once(
         );
 
         // ======================================
-        // REGISTER /LIVE
+        // REGISTER COMMANDS
         // ======================================
 
-        await registerLiveCommand();
+        await registerCommands();
 
         // ======================================
         // KICK CHECKER
@@ -394,29 +480,32 @@ client.once(
         } catch (error) {
 
             console.error(
-                "❌ KICK checker failed:",
-                error
+                "❌ KICK checker failed:"
             );
+
+            console.error(error);
         }
     }
 );
 
 // ==========================================
-// ERRORS
+// DISCORD ERRORS
 // ==========================================
 
 client.on(
     "error",
     error => {
+
         console.error(
-            "❌ Discord error:",
-            error
+            "❌ Discord error:"
         );
+
+        console.error(error);
     }
 );
 
 // ==========================================
-// START
+// START BOT
 // ==========================================
 
 async function start() {
@@ -435,13 +524,13 @@ async function start() {
 
         if (!CLIENT_ID) {
             throw new Error(
-                "DISCORD_CLIENT_ID is missing."
+                "CLIENT_ID is missing."
             );
         }
 
         if (!GUILD_ID) {
             throw new Error(
-                "DISCORD_GUILD_ID is missing."
+                "GUILD_ID is missing."
             );
         }
 
@@ -465,14 +554,18 @@ async function start() {
             "🔐 Connecting to Discord..."
         );
 
-        await client.login(TOKEN);
+        await client.login(
+            TOKEN
+        );
 
     } catch (error) {
 
         console.error("");
+
         console.error(
             "❌ BOT STARTUP FAILED"
         );
+
         console.error(error);
     }
 }
