@@ -5,58 +5,47 @@ const {
     Routes
 } = require("discord.js");
 
-const kickCommand =
-    require("./commands/utility/kick");
+const liveCommand = require("./commands/utility/kick");
 
 const commands = [
-    kickCommand.data.toJSON()
+    liveCommand.data.toJSON()
 ];
 
-const rest = new REST({
-    version: "10"
-}).setToken(
-    process.env.DISCORD_TOKEN
-);
+const rest = new REST({ version: "10" })
+    .setToken(process.env.DISCORD_TOKEN);
 
-async function deploy() {
+async function deployCommands() {
     try {
-        console.log(
-            `🔄 Deploying ${commands.length} command(s)...`
-        );
-
-        if (
-            process.env.GUILD_ID
-        ) {
-            await rest.put(
-                Routes.applicationGuildCommands(
-                    process.env.CLIENT_ID,
-                    process.env.GUILD_ID
-                ),
-                {
-                    body: commands
-                }
-            );
-        } else {
-            await rest.put(
-                Routes.applicationCommands(
-                    process.env.CLIENT_ID
-                ),
-                {
-                    body: commands
-                }
-            );
+        if (!process.env.DISCORD_TOKEN) {
+            throw new Error("DISCORD_TOKEN is missing.");
         }
 
-        console.log(
-            "✅ Commands deployed!"
-        );
-    } catch (error) {
-        console.error(
-            "❌ Command deployment failed:"
+        if (!process.env.CLIENT_ID) {
+            throw new Error("CLIENT_ID is missing.");
+        }
+
+        if (!process.env.GUILD_ID) {
+            throw new Error("GUILD_ID is missing.");
+        }
+
+        console.log("🔄 Registering /live...");
+
+        await rest.put(
+            Routes.applicationGuildCommands(
+                process.env.CLIENT_ID,
+                process.env.GUILD_ID
+            ),
+            {
+                body: commands
+            }
         );
 
+        console.log("✅ /live registered successfully!");
+    } catch (error) {
+        console.error("❌ Failed to register /live:");
         console.error(error);
+        process.exit(1);
     }
 }
 
-deploy();
+deployCommands();
