@@ -27,8 +27,8 @@ const {
 // ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
-const GUILD_ID = process.env.DISCORD_GUILD_ID;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
 if (!TOKEN) {
     console.error("❌ DISCORD_TOKEN is missing.");
