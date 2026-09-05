@@ -8,9 +8,16 @@ const {
     Client,
     Collection,
     GatewayIntentBits,
-    REST,
-    Routes
+    ActivityType
 } = require("discord.js");
+
+const {
+    connectDatabase
+} = require("./database/mongodb");
+
+const {
+    startKickChecker
+} = require("./services/kickChecker");
 
 // ==========================================
 // HOSTINGER WEB SERVER
@@ -23,7 +30,7 @@ const server = http.createServer((req, res) => {
         "Content-Type": "text/plain"
     });
 
-    res.end("Discord bot is online!");
+    res.end("K7Devs Discord Bot is online!");
 });
 
 server.listen(PORT, "0.0.0.0", () => {
@@ -46,77 +53,69 @@ client.commands = new Collection();
 // LOAD COMMANDS
 // ==========================================
 
-// ==========================================
-// LOAD COMMANDS
-// ==========================================
-
-client.commands = new Collection();
-
 function loadCommands(directory) {
 
     if (!fs.existsSync(directory)) {
         console.error(
-            `❌ Commands folder does not exist: ${directory}`
+            `❌ Commands folder not found: ${directory}`
         );
         return;
     }
 
-    const entries = fs.readdirSync(
+    const files = fs.readdirSync(
         directory,
         { withFileTypes: true }
     );
 
-    for (const entry of entries) {
+    for (const file of files) {
 
-        const fullPath =
-            path.join(directory, entry.name);
+        const filePath =
+            path.join(directory, file.name);
 
-        // Enter subfolders
-        if (entry.isDirectory()) {
-            loadCommands(fullPath);
+        if (file.isDirectory()) {
+            loadCommands(filePath);
             continue;
         }
 
-        // Only JavaScript files
-        if (!entry.name.endsWith(".js")) {
+        if (!file.name.endsWith(".js")) {
             continue;
         }
 
         try {
 
             delete require.cache[
-                require.resolve(fullPath)
+                require.resolve(filePath)
             ];
 
             const command =
-                require(fullPath);
+                require(filePath);
 
             if (
                 !command.data ||
                 typeof command.execute !== "function"
             ) {
-                console.warn(
-                    `⚠️ Skipping invalid command: ${fullPath}`
+                console.log(
+                    `⚠️ Skipped invalid command: ${filePath}`
                 );
                 continue;
             }
 
-            const commandName =
+            const name =
                 command.data.name;
 
             client.commands.set(
-                commandName,
+                name,
                 command
             );
 
             console.log(
-                `✅ Loaded /${commandName} ← ${fullPath}`
+                `✅ Loaded /${name}`
             );
 
         } catch (error) {
 
             console.error(
-                `❌ Failed loading: ${fullPath}`
+                `❌ Could not load ${filePath}`
             );
 
             console.error(error);
@@ -124,218 +123,217 @@ function loadCommands(directory) {
     }
 }
 
-const commandsPath =
-    path.join(__dirname, "commands");
-
-console.log(
-    `📂 Loading commands from: ${commandsPath}`
+loadCommands(
+    path.join(__dirname, "commands")
 );
-
-loadCommands(commandsPath);
 
 console.log("");
 console.log(
-    "================================"
+    `📦 ${client.commands.size} commands loaded`
 );
+
 console.log(
-    `📦 TOTAL COMMANDS: ${client.commands.size}`
+    `📋 ${[...client.commands.keys()].join(", ")}`
 );
-console.log(
-    `📋 COMMAND LIST: ${[
-        ...client.commands.keys()
-    ].join(", ")}`
-);
-console.log(
-    "================================"
-);
-
-
-// ==========================================
-// REGISTER COMMANDS WITH DISCORD
-// ==========================================
-
-async function registerCommands() {
-    const token = process.env.DISCORD_TOKEN;
-    const clientId = process.env.CLIENT_ID;
-    const guildId = process.env.GUILD_ID;
-
-    if (!token) {
-        throw new Error("DISCORD_TOKEN is missing.");
-    }
-
-    if (!clientId) {
-        throw new Error("CLIENT_ID is missing.");
-    }
-
-    if (!guildId) {
-        throw new Error("GUILD_ID is missing.");
-    }
-
-    const commands = [];
-
-    for (const command of client.commands.values()) {
-        commands.push(command.data.toJSON());
-    }
-
-    console.log("");
-    console.log(
-        `📤 Registering ${commands.length} commands...`
-    );
-
-    console.log(
-        commands.map(x => `/${x.name}`).join(", ")
-    );
-
-    const rest = new REST({
-        version: "10"
-    }).setToken(token);
-
-    await rest.put(
-        Routes.applicationGuildCommands(
-            clientId,
-            guildId
-        ),
-        {
-            body: commands
-        }
-    );
-
-    console.log("✅ Discord commands registered!");
-}
 
 // ==========================================
 // INTERACTION HANDLER
 // ==========================================
 
-client.on("interactionCreate", async interaction => {
+client.on(
+    "interactionCreate",
+    async interaction => {
 
-    if (!interaction.isChatInputCommand()) {
-        return;
-    }
+        if (!interaction.isChatInputCommand()) {
+            return;
+        }
 
-    console.log(
-        `📥 RECEIVED /${interaction.commandName}`
-    );
-
-    const command =
-        client.commands.get(
-            interaction.commandName
-        );
-
-    if (!command) {
         console.log(
-            `❌ COMMAND NOT FOUND: ${interaction.commandName}`
+            `📥 DISCORD COMMAND RECEIVED: /${interaction.commandName}`
         );
 
-        return;
-    }
+        const command =
+            client.commands.get(
+                interaction.commandName
+            );
 
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(
-            `❌ COMMAND ERROR /${interaction.commandName}`,
-            error
+        if (!command) {
+
+            console.error(
+                `❌ Command NOT FOUND: /${interaction.commandName}`
+            );
+
+            // IMPORTANT:
+            // Still respond to Discord.
+            try {
+                await interaction.reply({
+                    content:
+                        `❌ I don't have the /${interaction.commandName} command loaded.`,
+                    ephemeral: true
+                });
+            } catch (error) {
+                console.error(error);
+            }
+
+            return;
+        }
+
+        console.log(
+            `▶️ Executing /${interaction.commandName}`
         );
 
         try {
-            if (
-                interaction.deferred ||
-                interaction.replied
-            ) {
-                await interaction.editReply({
-                    content:
-                        "❌ Command failed."
-                });
-            } else {
-                await interaction.reply({
-                    content:
-                        "❌ Command failed.",
-                    ephemeral: true
-                });
-            }
-        } catch {}
-    }
-});
 
+            await command.execute(
+                interaction
+            );
+
+            console.log(
+                `✅ /${interaction.commandName} completed`
+            );
+
+        } catch (error) {
+
+            console.error(
+                `❌ /${interaction.commandName} ERROR:`
+            );
+
+            console.error(error);
+
+            try {
+
+                if (
+                    interaction.deferred ||
+                    interaction.replied
+                ) {
+
+                    await interaction.editReply({
+                        content:
+                            "❌ The command encountered an error."
+                    });
+
+                } else {
+
+                    await interaction.reply({
+                        content:
+                            "❌ The command encountered an error.",
+                        ephemeral: true
+                    });
+                }
+
+            } catch (replyError) {
+
+                console.error(
+                    "❌ Could not send error response:",
+                    replyError
+                );
+            }
+        }
+    }
+);
 
 // ==========================================
 // DISCORD READY
 // ==========================================
 
-client.once("clientReady", async () => {
+client.once(
+    "clientReady",
+    async () => {
 
-    console.log("");
-    console.log("==============================");
-    console.log("      DISCORD CONNECTED");
-    console.log("==============================");
-
-    console.log(
-        `✅ Logged in as ${client.user.tag}`
-    );
-
-    console.log(
-        `🌐 Servers: ${client.guilds.cache.size}`
-    );
-
-    // ======================================
-    // STREAMING STATUS
-    // ======================================
-
-    client.user.setPresence({
-        activities: [
-            {
-                name: "K7Devs Live",
-                type: 1,
-                url: "https://k7devs.com"
-            }
-        ],
-        status: "online"
-    });
-
-    console.log(
-        "🟣 Streaming status enabled!"
-    );
-
-    // ======================================
-    // KICK CHECKER
-    // ======================================
-
-    try {
-
-        const {
-            startKickChecker
-        } = require("./services/kickChecker");
-
-        startKickChecker(client);
-
+        console.log("");
         console.log(
-            "📺 KICK checker started!"
+            "================================"
+        );
+        console.log(
+            "       DISCORD CONNECTED"
+        );
+        console.log(
+            "================================"
         );
 
-    } catch (error) {
+        console.log(
+            `✅ Logged in as ${client.user.tag}`
+        );
 
+        console.log(
+            `🌐 Servers: ${client.guilds.cache.size}`
+        );
+
+        console.log(
+            `📦 Commands: ${client.commands.size}`
+        );
+
+        // ======================================
+        // STREAMING STATUS
+        // ======================================
+
+        client.user.setPresence({
+            activities: [
+                {
+                    name: "/help, Made by iik27",
+                    type: ActivityType.Streaming,
+                    url: "https://k7devs.com"
+                }
+            ],
+            status: "online"
+        });
+
+        console.log(
+            "🔴 Streaming status enabled!"
+        );
+
+        // ======================================
+        // KICK CHECKER
+        // ======================================
+
+        try {
+
+            startKickChecker(client);
+
+            console.log(
+                "📺 KICK checker started!"
+            );
+
+        } catch (error) {
+
+            console.error(
+                "❌ KICK checker failed:"
+            );
+
+            console.error(error);
+        }
+    }
+);
+
+// ==========================================
+// DISCORD ERROR
+// ==========================================
+
+client.on(
+    "error",
+    error => {
         console.error(
-            "❌ KICK checker failed:"
+            "❌ Discord client error:"
         );
 
         console.error(error);
     }
-});
+);
 
 // ==========================================
-// DISCORD ERRORS
+// DISCONNECT
 // ==========================================
 
-client.on("error", error => {
-    console.error("❌ Discord error:");
-    console.error(error);
-});
+client.on(
+    "shardDisconnect",
+    (event, shardId) => {
 
-client.on("shardError", error => {
-    console.error("❌ Discord gateway error:");
-    console.error(error);
-});
+        console.log(
+            `⚠️ Discord disconnected. Shard: ${shardId}`
+        );
+
+    }
+);
 
 // ==========================================
 // START
@@ -343,52 +341,34 @@ client.on("shardError", error => {
 
 async function start() {
 
-    try {
+    console.log("");
+    console.log(
+        "🚀 Starting Discord bot..."
+    );
 
-        console.log("");
-        console.log(
-            "🚀 Starting Discord bot..."
-        );
+    try {
 
         if (!process.env.DISCORD_TOKEN) {
             throw new Error(
-                "DISCORD_TOKEN is missing."
+                "DISCORD_TOKEN is missing from Hostinger environment variables."
             );
         }
 
         if (!process.env.MONGODB_URI) {
             throw new Error(
-                "MONGODB_URI is missing."
+                "MONGODB_URI is missing from Hostinger environment variables."
             );
         }
-
-        // --------------------------------------
-        // MONGODB
-        // --------------------------------------
 
         console.log(
             "🍃 Connecting to MongoDB..."
         );
-
-        const {
-            connectDatabase
-        } = require("./database/mongodb");
 
         await connectDatabase();
 
         console.log(
             "✅ MongoDB connected!"
         );
-
-        // --------------------------------------
-        // REGISTER COMMANDS
-        // --------------------------------------
-
-        await registerCommands();
-
-        // --------------------------------------
-        // LOGIN
-        // --------------------------------------
 
         console.log(
             "🔐 Connecting to Discord..."
@@ -406,8 +386,6 @@ async function start() {
         );
 
         console.error(error);
-
-        process.exit(1);
     }
 }
 
