@@ -363,7 +363,7 @@ client.once(
                 {
                     name: "Made by iik27",
                     type: ActivityType.Streaming,
-                    url: "https://www.twitch.tv/"
+                    url: "https://kick.com/iik27"
                 }
             ],
             status: "online"
