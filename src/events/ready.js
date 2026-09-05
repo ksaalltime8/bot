@@ -9,7 +9,7 @@ module.exports = {
 client.user.setPresence({
     activities: [
         {
-            name: "/help, Made by iik27",
+            name: "Made by iik27",
             type: 1,
             url: "https://k7devs.com"
         }
