@@ -5,8 +5,7 @@ const guildConfigSchema = new mongoose.Schema(
         guildId: {
             type: String,
             required: true,
-            unique: true,
-            index: true
+            unique: true
         },
 
         kick: {
@@ -36,28 +35,30 @@ const guildConfigSchema = new mongoose.Schema(
     }
 );
 
-const GuildConfig = mongoose.model(
-    "GuildConfig",
-    guildConfigSchema
-);
+const GuildConfig =
+    mongoose.models.GuildConfig ||
+    mongoose.model(
+        "GuildConfig",
+        guildConfigSchema
+    );
 
 async function connectDatabase() {
-    const uri = process.env.MONGODB_URI;
-
-    if (!uri) {
+    if (!process.env.MONGODB_URI) {
         throw new Error(
-            "MONGODB_URI is missing from the environment variables."
+            "MONGODB_URI is missing."
         );
     }
 
-    await mongoose.connect(uri);
-
-    console.log("🍃 MongoDB connected!");
+    await mongoose.connect(
+        process.env.MONGODB_URI
+    );
 }
 
 async function getGuildConfig(guildId) {
     return GuildConfig.findOneAndUpdate(
-        { guildId },
+        {
+            guildId
+        },
         {
             $setOnInsert: {
                 guildId
