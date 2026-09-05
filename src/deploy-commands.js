@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
-
 const {
     REST,
     Routes
@@ -10,24 +9,17 @@ const {
 
 const commands = [];
 
-const commandsPath = path.join(
-    __dirname,
-    "commands"
-);
-
 function loadCommands(directory) {
-    const files = fs.readdirSync(directory);
+    if (!fs.existsSync(directory)) {
+        return;
+    }
 
-    for (const file of files) {
-        const fullPath = path.join(
-            directory,
-            file
-        );
-
-        const stat = fs.statSync(fullPath);
+    for (const file of fs.readdirSync(directory)) {
+        const filePath = path.join(directory, file);
+        const stat = fs.statSync(filePath);
 
         if (stat.isDirectory()) {
-            loadCommands(fullPath);
+            loadCommands(filePath);
             continue;
         }
 
@@ -35,69 +27,64 @@ function loadCommands(directory) {
             continue;
         }
 
-        const command = require(fullPath);
+        try {
+            const command = require(filePath);
 
-        if (!command.data || !command.execute) {
-            console.log(
-                `⚠️ Skipping ${file} - invalid command`
+            if (
+                command.data &&
+                typeof command.execute === "function"
+            ) {
+                commands.push(command.data.toJSON());
+
+                console.log(
+                    `✅ Found /${command.data.name}`
+                );
+            }
+        } catch (error) {
+            console.error(
+                `❌ Failed loading ${filePath}`
             );
-
-            continue;
+            console.error(error);
         }
-
-        commands.push(
-            command.data.toJSON()
-        );
-
-        console.log(
-            `📦 Loaded /${command.data.name}`
-        );
     }
 }
+
+const commandsPath = path.join(
+    __dirname,
+    "commands"
+);
 
 loadCommands(commandsPath);
 
 async function deploy() {
-    const token =
-        process.env.DISCORD_TOKEN;
-
-    const clientId =
-        process.env.CLIENT_ID;
-
-    const guildId =
-        process.env.GUILD_ID;
+    const token = process.env.DISCORD_TOKEN;
+    const clientId = process.env.CLIENT_ID;
+    const guildId = process.env.GUILD_ID;
 
     if (!token) {
-        throw new Error(
-            "DISCORD_TOKEN is missing."
-        );
+        throw new Error("DISCORD_TOKEN is missing.");
     }
 
     if (!clientId) {
-        throw new Error(
-            "CLIENT_ID is missing."
-        );
+        throw new Error("CLIENT_ID is missing.");
     }
 
     if (!guildId) {
-        throw new Error(
-            "GUILD_ID is missing."
-        );
+        throw new Error("GUILD_ID is missing.");
     }
 
     console.log("");
+    console.log(`📦 Loaded ${commands.length} commands.`);
     console.log(
-        `🚀 Deploying ${commands.length} commands...`
-    );
-
-    console.log(
-        "Commands:",
-        commands.map(c => `/${c.name}`).join(", ")
+        commands.map(command => `/${command.name}`).join(", ")
     );
 
     const rest = new REST({
         version: "10"
     }).setToken(token);
+
+    console.log("");
+    console.log("🚀 Registering commands with Discord...");
 
     await rest.put(
         Routes.applicationGuildCommands(
@@ -110,23 +97,14 @@ async function deploy() {
     );
 
     console.log("");
-    console.log(
-        "================================"
-    );
-    console.log(
-        "✅ ALL COMMANDS REGISTERED"
-    );
-    console.log(
-        "================================"
-    );
+    console.log("======================================");
+    console.log("✅ DISCORD COMMANDS REGISTERED");
+    console.log("======================================");
 }
 
 deploy().catch(error => {
-    console.error(
-        "❌ Deployment failed:"
-    );
-
+    console.error("");
+    console.error("❌ COMMAND DEPLOYMENT FAILED");
     console.error(error);
-
     process.exit(1);
 });
