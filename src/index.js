@@ -270,12 +270,12 @@ client.once(
         client.user.setPresence({
             activities: [
                 {
-                    name: "/help, Made by iik27",
+                    name: "Made by iik27",
                     type: ActivityType.Streaming,
                     url: "https://k7devs.com"
                 }
             ],
-            status: "online"
+            status: "streaming"
         });
 
         console.log(
