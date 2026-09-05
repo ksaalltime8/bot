@@ -8,13 +8,13 @@ const guildConfigSchema = new mongoose.Schema(
             unique: true
         },
 
-        // Discord moderation / other kick data
+        // Discord moderation system
         kick: {
             type: mongoose.Schema.Types.Mixed,
             default: {}
         },
 
-        // KICK.COM LIVE SYSTEM
+        // KICK.COM live system
         kickLive: {
             enabled: {
                 type: Boolean,
@@ -37,7 +37,6 @@ const guildConfigSchema = new mongoose.Schema(
             }
         }
     },
-
     {
         timestamps: true
     }
@@ -51,31 +50,29 @@ const GuildConfig =
     );
 
 async function connectDatabase() {
-    const uri =
-        process.env.MONGODB_URI;
-
-    if (!uri) {
+    if (!process.env.MONGODB_URI) {
         throw new Error(
             "MONGODB_URI is missing."
         );
     }
 
-    await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 10000
-    });
+    await mongoose.connect(
+        process.env.MONGODB_URI,
+        {
+            serverSelectionTimeoutMS: 10000,
+            connectTimeoutMS: 10000
+        }
+    );
 }
 
 async function getGuildConfig(guildId) {
     return GuildConfig.findOneAndUpdate(
         { guildId },
-
         {
             $setOnInsert: {
                 guildId
             }
         },
-
         {
             new: true,
             upsert: true
