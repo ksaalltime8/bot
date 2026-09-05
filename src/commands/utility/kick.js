@@ -10,7 +10,7 @@ const {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName("kick")
+        .setName("live")
         .setDescription(
             "Configure KICK live alerts."
         )
