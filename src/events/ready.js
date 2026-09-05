@@ -6,16 +6,19 @@ module.exports = {
         console.log(`✅ Logged in as ${client.user.tag}`);
         console.log(`🌐 Serving ${client.guilds.cache.size} server(s)`);
 
-client.user.setPresence({
-    activities: [
-        {
-            name: "K7Devs Live",
-            type: 1,
-            url: "https://kick.com/iik27"
-        }
-    ],
-    status: "online"
-});
+const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once('ready', () => {
+    client.user.setPresence({
+        activities: [{
+            name: 'iik27',
+            type: ActivityType.Streaming,
+            url: 'https://kick.com/iik27'
+        }],
+        status: 'online',
+    });
 
 
 
