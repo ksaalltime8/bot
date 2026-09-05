@@ -1,16 +1,19 @@
 const {
     SlashCommandBuilder,
     PermissionFlagsBits,
-    ChannelType
+    ChannelType,
+    EmbedBuilder
 } = require("discord.js");
 
-const { getGuildConfig } =
-    require("../../database/mongodb");
+const { getGuildConfig } = require("../../database/mongodb");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("live")
         .setDescription("Manage KICK live alerts")
+        .setDefaultMemberPermissions(
+            PermissionFlagsBits.ManageGuild
+        )
 
         .addSubcommand(sub =>
             sub
@@ -19,17 +22,13 @@ module.exports = {
                 .addStringOption(option =>
                     option
                         .setName("link")
-                        .setDescription(
-                            "Your KICK channel link"
-                        )
+                        .setDescription("KICK channel URL")
                         .setRequired(true)
                 )
                 .addChannelOption(option =>
                     option
                         .setName("channel")
-                        .setDescription(
-                            "Discord channel for live alerts"
-                        )
+                        .setDescription("Channel for live alerts")
                         .addChannelTypes(
                             ChannelType.GuildText,
                             ChannelType.GuildAnnouncement
@@ -41,48 +40,33 @@ module.exports = {
         .addSubcommand(sub =>
             sub
                 .setName("disable")
-                .setDescription(
-                    "Disable KICK live alerts"
-                )
-        )
-
-        .setDefaultMemberPermissions(
-            PermissionFlagsBits.ManageGuild
+                .setDescription("Disable KICK live alerts")
         ),
 
     async execute(interaction) {
-        try {
-            // Acknowledge Discord immediately.
-            await interaction.deferReply({
-                ephemeral: true
-            });
+        // ACKNOWLEDGE DISCORD IMMEDIATELY
+        await interaction.deferReply({
+            ephemeral: true
+        });
 
-            const subcommand =
+        try {
+            const action =
                 interaction.options.getSubcommand();
 
             console.log(
-                `📺 /live ${subcommand} received`
+                `📺 /live ${action} from ${interaction.user.tag}`
             );
 
-            const config =
-                await getGuildConfig(
-                    interaction.guildId
-                );
-
-            // ================================
+            // ============================
             // SETUP
-            // ================================
+            // ============================
 
-            if (subcommand === "setup") {
+            if (action === "setup") {
                 const link =
-                    interaction.options.getString(
-                        "link"
-                    );
+                    interaction.options.getString("link");
 
                 const channel =
-                    interaction.options.getChannel(
-                        "channel"
-                    );
+                    interaction.options.getChannel("channel");
 
                 let url;
 
@@ -90,19 +74,19 @@ module.exports = {
                     url = new URL(link);
                 } catch {
                     return interaction.editReply(
-                        "❌ Invalid KICK URL."
+                        "❌ Invalid URL. Example: `https://kick.com/username`"
                     );
                 }
 
-                const hostname =
+                const host =
                     url.hostname.toLowerCase();
 
                 if (
-                    hostname !== "kick.com" &&
-                    hostname !== "www.kick.com"
+                    host !== "kick.com" &&
+                    host !== "www.kick.com"
                 ) {
                     return interaction.editReply(
-                        "❌ Please use a KICK link like `https://kick.com/username`."
+                        "❌ Please provide a valid KICK.com channel URL."
                     );
                 }
 
@@ -113,63 +97,63 @@ module.exports = {
 
                 if (!username) {
                     return interaction.editReply(
-                        "❌ I couldn't find the KICK username."
+                        "❌ Could not find the KICK username."
                     );
                 }
 
-                // Save ONLY the live-stream settings.
-                config.kickLive.enabled = true;
+                console.log(
+                    `📺 Setting KICK streamer: ${username}`
+                );
 
-                config.kickLive.username =
-                    username.toLowerCase();
+                // Get/create guild configuration
+                const config =
+                    await getGuildConfig(
+                        interaction.guildId
+                    );
 
-                config.kickLive.channelId =
-                    channel.id;
-
-                config.kickLive.lastLive = false;
+                // IMPORTANT:
+                // kickLive is for the KICK LIVE system.
+                // kick is kept separate for /kick moderation.
+                config.kickLive = {
+                    enabled: true,
+                    username:
+                        username.toLowerCase(),
+                    channelId: channel.id,
+                    lastLive: false
+                };
 
                 await config.save();
 
                 console.log(
-                    "================================"
-                );
-                console.log(
-                    "📺 KICK LIVE CONFIG SAVED"
-                );
-                console.log(
-                    `Username: ${config.kickLive.username}`
-                );
-                console.log(
-                    `Channel: ${config.kickLive.channelId}`
-                );
-                console.log(
-                    `Enabled: ${config.kickLive.enabled}`
-                );
-                console.log(
-                    "================================"
+                    `✅ Saved KICK live configuration for ${username}`
                 );
 
                 return interaction.editReply(
-                    `✅ **KICK live alerts enabled!**\n\n` +
+                    `## 🔴 KICK Live Alerts Enabled\n\n` +
                     `🎥 **Streamer:** ${username}\n` +
-                    `🔗 **KICK:** https://kick.com/${username}\n` +
-                    `📢 **Alert channel:** ${channel}\n\n` +
-                    `🔄 Checking every 60 seconds.`
+                    `📢 **Channel:** ${channel}\n` +
+                    `🔗 **KICK:** https://kick.com/${username}\n\n` +
+                    `✅ I will check the streamer every 60 seconds.`
                 );
             }
 
-            // ================================
+            // ============================
             // DISABLE
-            // ================================
+            // ============================
 
-            if (subcommand === "disable") {
+            if (action === "disable") {
+                const config =
+                    await getGuildConfig(
+                        interaction.guildId
+                    );
+
                 config.kickLive.enabled = false;
                 config.kickLive.lastLive = false;
 
                 await config.save();
 
                 console.log(
-                    `📺 KICK live alerts disabled for ${interaction.guildId}`
+                    "🛑 KICK live alerts disabled"
                 );
 
                 return interaction.editReply(
@@ -179,25 +163,14 @@ module.exports = {
 
         } catch (error) {
             console.error(
-                "❌ /live command error:",
+                "❌ /live ERROR:",
                 error
             );
 
             try {
-                if (
-                    interaction.deferred ||
-                    interaction.replied
-                ) {
-                    await interaction.editReply(
-                        "❌ Something went wrong. Check the Hostinger console."
-                    );
-                } else {
-                    await interaction.reply({
-                        content:
-                            "❌ Something went wrong.",
-                        ephemeral: true
-                    });
-                }
+                await interaction.editReply(
+                    "❌ Something went wrong while setting up KICK live alerts."
+                );
             } catch {}
         }
     }
