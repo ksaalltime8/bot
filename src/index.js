@@ -1,99 +1,114 @@
 require("dotenv").config();
 
 const http = require("http");
+
 const {
     Client,
     Collection,
     GatewayIntentBits
 } = require("discord.js");
 
-const { connectDatabase } = require("./database/mongodb");
-const { startKickChecker } = require("./services/kickChecker");
-const kickCommand = require("./commands/utility/kick");
+const {
+    connectDatabase
+} = require("./database/mongodb");
 
-// ─────────────────────────────────────
-// Hostinger web server
-// ─────────────────────────────────────
+const {
+    startKickChecker
+} = require("./services/kickChecker");
 
-const PORT = process.env.PORT || 3000;
+const liveCommand =
+    require("./commands/utility/kick");
 
-const server = http.createServer((req, res) => {
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "text/plain");
-    res.end("Bot is online!");
-});
+const PORT =
+    process.env.PORT || 3000;
 
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌐 Web server listening on port ${PORT}`);
-});
+const server = http.createServer(
+    (req, res) => {
+        res.writeHead(200, {
+            "Content-Type": "text/plain"
+        });
 
-// ─────────────────────────────────────
-// Discord client
-// ─────────────────────────────────────
+        res.end("Discord bot is online!");
+    }
+);
+
+server.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+        console.log(
+            `🌐 Web server listening on ${PORT}`
+        );
+    }
+);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds
+    ]
 });
 
 client.commands = new Collection();
 
 client.commands.set(
-    kickCommand.data.name,
-    kickCommand
+    liveCommand.data.name,
+    liveCommand
 );
 
-// ─────────────────────────────────────
-// Slash commands
-// ─────────────────────────────────────
+client.on(
+    "interactionCreate",
+    async interaction => {
+        if (
+            !interaction.isChatInputCommand()
+        ) {
+            return;
+        }
 
-client.on("interactionCreate", async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+        const command =
+            client.commands.get(
+                interaction.commandName
+            );
 
-    const command = client.commands.get(
-        interaction.commandName
-    );
+        if (!command) {
+            console.log(
+                `Unknown command: ${interaction.commandName}`
+            );
+            return;
+        }
 
-    if (!command) return;
-
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error("❌ Command error:", error);
-
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({
-                content: "❌ Something went wrong.",
-                ephemeral: true
-            }).catch(() => {});
-        } else {
-            await interaction.reply({
-                content: "❌ Something went wrong.",
-                ephemeral: true
-            }).catch(() => {});
+        try {
+            await command.execute(
+                interaction
+            );
+        } catch (error) {
+            console.error(
+                "Command error:",
+                error
+            );
         }
     }
-});
+);
 
-// ─────────────────────────────────────
-// Discord ready
-// ─────────────────────────────────────
+client.once(
+    "clientReady",
+    () => {
+        console.log(
+            `✅ Logged in as ${client.user.tag}`
+        );
 
-client.once("clientReady", () => {
-    console.log(`✅ Discord logged in as ${client.user.tag}`);
-    console.log(
-        `🌐 Connected to ${client.guilds.cache.size} server(s)`
-    );
+        console.log(
+            `🌐 Servers: ${client.guilds.cache.size}`
+        );
 
-    startKickChecker(client);
-});
-
-// ─────────────────────────────────────
-// Start bot
-// ─────────────────────────────────────
+        startKickChecker(client);
+    }
+);
 
 async function start() {
     try {
-        console.log("🚀 Starting bot...");
+        console.log(
+            "🚀 Starting Discord bot..."
+        );
 
         if (!process.env.DISCORD_TOKEN) {
             throw new Error(
@@ -109,14 +124,19 @@ async function start() {
 
         await connectDatabase();
 
-        console.log("🔐 Logging into Discord...");
+        console.log(
+            "🍃 MongoDB connected!"
+        );
 
         await client.login(
             process.env.DISCORD_TOKEN
         );
 
     } catch (error) {
-        console.error("❌ Startup error:");
+        console.error(
+            "❌ Bot startup failed:"
+        );
+
         console.error(error);
     }
 }
