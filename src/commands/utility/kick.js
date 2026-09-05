@@ -5,7 +5,7 @@ const {
 
 const {
     getGuildConfig
-} = require("../../../database/mongodb");
+} = require("../../database/mongodb");
 
 
 module.exports = {
