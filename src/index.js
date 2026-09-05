@@ -7,16 +7,10 @@ const path = require("path");
 const {
     Client,
     Collection,
-    GatewayIntentBits
+    GatewayIntentBits,
+    REST,
+    Routes
 } = require("discord.js");
-
-const {
-    connectDatabase
-} = require("./database/mongodb");
-
-const {
-    startKickChecker
-} = require("./services/kickChecker");
 
 // ==========================================
 // HOSTINGER WEB SERVER
@@ -36,10 +30,6 @@ server.listen(PORT, "0.0.0.0", () => {
     console.log(`🌐 Web server listening on ${PORT}`);
 });
 
-server.on("error", (error) => {
-    console.error("❌ Web server error:", error);
-});
-
 // ==========================================
 // DISCORD CLIENT
 // ==========================================
@@ -50,79 +40,35 @@ const client = new Client({
     ]
 });
 
-// ==========================================
-// DISCORD ERROR HANDLERS
-// ==========================================
-
-client.on("error", (error) => {
-    console.error("❌ Discord client error:");
-    console.error(error);
-});
-
-client.on("shardError", (error) => {
-    console.error("❌ Discord shard error:");
-    console.error(error);
-});
-
-client.on("warn", (message) => {
-    console.warn("⚠️ Discord warning:", message);
-});
-
-client.on("debug", (message) => {
-    // Only print useful gateway messages
-    if (
-        message.includes("Heartbeat") ||
-        message.includes("READY") ||
-        message.includes("Session")
-    ) {
-        console.log("🔎 Discord:", message);
-    }
-});
-
-// ==========================================
-// COMMANDS
-// ==========================================
-
 client.commands = new Collection();
 
-function loadCommands(directory) {
+// ==========================================
+// LOAD COMMANDS
+// ==========================================
 
+function loadCommands(directory) {
     if (!fs.existsSync(directory)) {
-        console.error(
-            `❌ Commands folder not found: ${directory}`
-        );
+        console.log(`⚠️ Commands folder missing: ${directory}`);
         return;
     }
 
     const files = fs.readdirSync(directory);
 
     for (const file of files) {
-
-        const filePath = path.join(
-            directory,
-            file
-        );
-
+        const filePath = path.join(directory, file);
         const stat = fs.statSync(filePath);
 
-        // Search subfolders
         if (stat.isDirectory()) {
             loadCommands(filePath);
             continue;
         }
 
-        // Only JavaScript files
         if (!file.endsWith(".js")) {
             continue;
         }
 
         try {
-
-            // Clear cache so Hostinger doesn't
-            // accidentally use an old command
-            delete require.cache[
-                require.resolve(filePath)
-            ];
+            delete require.cache[require.resolve(filePath)];
 
             const command = require(filePath);
 
@@ -130,40 +76,15 @@ function loadCommands(directory) {
                 command.data &&
                 typeof command.execute === "function"
             ) {
+                const name = command.data.name;
 
-                const name =
-                    command.data.name;
+                client.commands.set(name, command);
 
-                if (client.commands.has(name)) {
-                    console.warn(
-                        `⚠️ Duplicate command /${name} - skipping ${filePath}`
-                    );
-
-                    continue;
-                }
-
-                client.commands.set(
-                    name,
-                    command
-                );
-
-                console.log(
-                    `✅ Loaded /${name}`
-                );
-
-            } else {
-
-                console.warn(
-                    `⚠️ Skipped ${filePath}: missing data or execute`
-                );
+                console.log(`✅ Loaded /${name}`);
             }
 
         } catch (error) {
-
-            console.error(
-                `❌ Failed to load command: ${filePath}`
-            );
-
+            console.error(`❌ Failed loading ${filePath}`);
             console.error(error);
         }
     }
@@ -173,209 +94,218 @@ loadCommands(
     path.join(__dirname, "commands")
 );
 
-console.log("");
 console.log(
-    `📦 Total commands loaded: ${client.commands.size}`
+    `📦 ${client.commands.size} commands loaded`
 );
 
-console.log(
-    `📋 Commands: ${
-        [...client.commands.keys()]
-            .map(name => `/${name}`)
-            .join(", ")
-    }`
-);
-
-console.log("");
-
 // ==========================================
-// COMMAND HANDLER
+// REGISTER COMMANDS WITH DISCORD
 // ==========================================
 
-client.on(
-    "interactionCreate",
-    async (interaction) => {
+async function registerCommands() {
+    const token = process.env.DISCORD_TOKEN;
+    const clientId = process.env.CLIENT_ID;
+    const guildId = process.env.GUILD_ID;
 
-        if (!interaction.isChatInputCommand()) {
-            return;
+    if (!token) {
+        throw new Error("DISCORD_TOKEN is missing.");
+    }
+
+    if (!clientId) {
+        throw new Error("CLIENT_ID is missing.");
+    }
+
+    if (!guildId) {
+        throw new Error("GUILD_ID is missing.");
+    }
+
+    const commands = [];
+
+    for (const command of client.commands.values()) {
+        commands.push(command.data.toJSON());
+    }
+
+    console.log("");
+    console.log(
+        `📤 Registering ${commands.length} commands...`
+    );
+
+    console.log(
+        commands.map(x => `/${x.name}`).join(", ")
+    );
+
+    const rest = new REST({
+        version: "10"
+    }).setToken(token);
+
+    await rest.put(
+        Routes.applicationGuildCommands(
+            clientId,
+            guildId
+        ),
+        {
+            body: commands
         }
+    );
 
-        console.log(
-            `📥 Received /${interaction.commandName}`
+    console.log("✅ Discord commands registered!");
+}
+
+// ==========================================
+// INTERACTION HANDLER
+// ==========================================
+
+client.on("interactionCreate", async interaction => {
+
+    if (!interaction.isChatInputCommand()) {
+        return;
+    }
+
+    console.log(
+        `📥 Received /${interaction.commandName}`
+    );
+
+    const command = client.commands.get(
+        interaction.commandName
+    );
+
+    if (!command) {
+        console.error(
+            `❌ Command /${interaction.commandName} not found`
         );
 
-        const command =
-            client.commands.get(
-                interaction.commandName
-            );
-
-        if (!command) {
-
-            console.error(
-                `❌ Command /${interaction.commandName} does not exist in memory.`
-            );
-
-            try {
-                await interaction.reply({
-                    content:
-                        "❌ This command is not loaded by the bot.",
-                    ephemeral: true
-                });
-            } catch {}
-
-            return;
+        if (!interaction.replied) {
+            await interaction.reply({
+                content: "❌ Command not loaded.",
+                ephemeral: true
+            }).catch(() => {});
         }
+
+        return;
+    }
+
+    try {
+
+        await command.execute(interaction);
+
+        console.log(
+            `✅ /${interaction.commandName} finished`
+        );
+
+    } catch (error) {
+
+        console.error(
+            `❌ /${interaction.commandName} ERROR`
+        );
+
+        console.error(error);
 
         try {
 
-            await command.execute(
-                interaction
-            );
+            if (
+                interaction.replied ||
+                interaction.deferred
+            ) {
 
-            console.log(
-                `✅ /${interaction.commandName} completed`
-            );
+                await interaction.followUp({
+                    content:
+                        "❌ Something went wrong while running this command.",
+                    ephemeral: true
+                });
 
-        } catch (error) {
+            } else {
 
-            console.error(
-                `❌ /${interaction.commandName} failed:`
-            );
-
-            console.error(error);
-
-            try {
-
-                if (
-                    interaction.replied ||
-                    interaction.deferred
-                ) {
-
-                    await interaction.followUp({
-                        content:
-                            "❌ Something went wrong while running this command.",
-                        ephemeral: true
-                    });
-
-                } else {
-
-                    await interaction.reply({
-                        content:
-                            "❌ Something went wrong while running this command.",
-                        ephemeral: true
-                    });
-                }
-
-            } catch (replyError) {
-
-                console.error(
-                    "❌ Could not send error response:",
-                    replyError
-                );
+                await interaction.reply({
+                    content:
+                        "❌ Something went wrong while running this command.",
+                    ephemeral: true
+                });
             }
-        }
+
+        } catch {}
     }
-);
+});
 
 // ==========================================
 // DISCORD READY
 // ==========================================
 
-client.once(
-    "clientReady",
-    async () => {
+client.once("clientReady", async () => {
 
-        console.log("");
-        console.log(
-            "=============================="
-        );
-        console.log(
-            "      DISCORD CONNECTED"
-        );
-        console.log(
-            "=============================="
-        );
+    console.log("");
+    console.log("==============================");
+    console.log("      DISCORD CONNECTED");
+    console.log("==============================");
 
-        console.log(
-            `✅ Logged in as ${client.user.tag}`
-        );
+    console.log(
+        `✅ Logged in as ${client.user.tag}`
+    );
 
-        console.log(
-            `🆔 Bot ID: ${client.user.id}`
-        );
+    console.log(
+        `🌐 Servers: ${client.guilds.cache.size}`
+    );
 
-        console.log(
-            `🌐 Servers: ${client.guilds.cache.size}`
-        );
+    // ======================================
+    // STREAMING STATUS
+    // ======================================
 
-        console.log(
-            `📦 Commands loaded: ${client.commands.size}`
-        );
+    client.user.setPresence({
+        activities: [
+            {
+                name: "K7Devs Live",
+                type: 1,
+                url: "https://k7devs.com"
+            }
+        ],
+        status: "online"
+    });
 
-        // ======================================
-        // STREAMING STATUS
-        // ======================================
+    console.log(
+        "🟣 Streaming status enabled!"
+    );
 
-        try {
+    // ======================================
+    // KICK CHECKER
+    // ======================================
 
-            client.user.setPresence({
-                activities: [
-                    {
-                        name: "K7Devs Live",
-                        type: 1,
-                        url: "https://k7devs.com"
-                    }
-                ],
-                status: "online"
-            });
+    try {
 
-            console.log(
-                "🟣 Streaming status enabled!"
-            );
+        const {
+            startKickChecker
+        } = require("./services/kickChecker");
 
-        } catch (error) {
-
-            console.error(
-                "❌ Failed to set streaming status:",
-                error
-            );
-        }
-
-        // ======================================
-        // KICK CHECKER
-        // ======================================
+        startKickChecker(client);
 
         console.log(
-            "📺 Starting KICK checker..."
+            "📺 KICK checker started!"
         );
 
-        try {
+    } catch (error) {
 
-            startKickChecker(client);
-
-            console.log(
-                "✅ KICK checker started!"
-            );
-
-        } catch (error) {
-
-            console.error(
-                "❌ KICK checker failed:"
-            );
-
-            console.error(error);
-        }
-
-        console.log("");
-        console.log(
-            "🚀 BOT IS FULLY ONLINE!"
+        console.error(
+            "❌ KICK checker failed:"
         );
-        console.log("");
+
+        console.error(error);
     }
-);
+});
 
 // ==========================================
-// START BOT
+// DISCORD ERRORS
+// ==========================================
+
+client.on("error", error => {
+    console.error("❌ Discord error:");
+    console.error(error);
+});
+
+client.on("shardError", error => {
+    console.error("❌ Discord gateway error:");
+    console.error(error);
+});
+
+// ==========================================
+// START
 // ==========================================
 
 async function start() {
@@ -387,31 +317,29 @@ async function start() {
             "🚀 Starting Discord bot..."
         );
 
-        // ======================================
-        // ENVIRONMENT VARIABLES
-        // ======================================
-
         if (!process.env.DISCORD_TOKEN) {
-
             throw new Error(
-                "DISCORD_TOKEN is missing from Hostinger environment variables."
+                "DISCORD_TOKEN is missing."
             );
         }
 
         if (!process.env.MONGODB_URI) {
-
             throw new Error(
-                "MONGODB_URI is missing from Hostinger environment variables."
+                "MONGODB_URI is missing."
             );
         }
 
-        // ======================================
+        // --------------------------------------
         // MONGODB
-        // ======================================
+        // --------------------------------------
 
         console.log(
             "🍃 Connecting to MongoDB..."
         );
+
+        const {
+            connectDatabase
+        } = require("./database/mongodb");
 
         await connectDatabase();
 
@@ -419,47 +347,23 @@ async function start() {
             "✅ MongoDB connected!"
         );
 
-        // ======================================
-        // DISCORD LOGIN
-        // ======================================
+        // --------------------------------------
+        // REGISTER COMMANDS
+        // --------------------------------------
+
+        await registerCommands();
+
+        // --------------------------------------
+        // LOGIN
+        // --------------------------------------
 
         console.log(
             "🔐 Connecting to Discord..."
         );
 
-        console.log(
-            "🔐 Discord login starting..."
+        await client.login(
+            process.env.DISCORD_TOKEN
         );
-
-        try {
-
-            await client.login(
-                process.env.DISCORD_TOKEN
-            );
-
-            console.log(
-                "🔑 Discord login successful!"
-            );
-
-        } catch (error) {
-
-            console.error("");
-            console.error(
-                "❌ DISCORD LOGIN FAILED"
-            );
-            console.error(
-                "--------------------------------"
-            );
-            console.error(error);
-            console.error(
-                "--------------------------------"
-            );
-            console.error(
-                "Check that DISCORD_TOKEN is the Bot Token from Discord Developer Portal."
-            );
-
-            process.exit(1);
-        }
 
     } catch (error) {
 
@@ -470,13 +374,8 @@ async function start() {
 
         console.error(error);
 
-        // Don't silently pretend the bot started
         process.exit(1);
     }
 }
-
-// ==========================================
-// START
-// ==========================================
 
 start();
