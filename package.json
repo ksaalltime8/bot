@@ -1,8 +1,0 @@
-{
-  "name": "discord-command-center-hostinger",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "NODE_ENV=production node artifacts/api-server/dist/index.mjs"
-  }
-}
