@@ -267,20 +267,21 @@ client.once(
         // STREAMING STATUS
         // ======================================
 
-        client.user.setPresence({
-            activities: [
-                {
-                    name: "Made by iik27",
-                    type: ActivityType.Streaming,
-                    url: "https://k7devs.com"
-                }
-            ],
-            status: "watching"
-        });
+   const { ActivityType } = require("discord.js");
 
-        console.log(
-            "🔴 Streaming status enabled!"
-        );
+client.user.setPresence({
+    activities: [
+        {
+            name: "Made by iik27",
+            type: ActivityType.Streaming,
+            url: "https://kick.com/iik27"
+        }
+    ],
+    status: "online"
+});
+
+console.log("🔴 Streaming status enabled!");
+
 
         // ======================================
         // KICK CHECKER
