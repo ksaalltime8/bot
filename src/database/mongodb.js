@@ -43,22 +43,23 @@ const GuildConfig =
     );
 
 async function connectDatabase() {
-    if (!process.env.MONGODB_URI) {
+    const uri = process.env.MONGODB_URI;
+
+    if (!uri) {
         throw new Error(
             "MONGODB_URI is missing."
         );
     }
 
-    await mongoose.connect(
-        process.env.MONGODB_URI
-    );
+    await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000
+    });
 }
 
 async function getGuildConfig(guildId) {
     return GuildConfig.findOneAndUpdate(
-        {
-            guildId
-        },
+        { guildId },
         {
             $setOnInsert: {
                 guildId
