@@ -14,7 +14,7 @@ module.exports = {
             url: "https://k7devs.com"
         }
     ],
-    status: "streaming"
+    status: "watching"
 });
 
     }
