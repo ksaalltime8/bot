@@ -2,7 +2,7 @@ const axios = require("axios");
 
 const {
     GuildConfig
-} = require("../../../database/mongodb");
+} = require("../../database/mongodb");
 
 const CHECK_INTERVAL = 60 * 1000;
 
