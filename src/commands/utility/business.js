@@ -12,35 +12,43 @@ module.exports = {
         .setDescription("Visit the K7Devs business website"),
 
     async execute(interaction) {
+        try {
+            const embed = new EmbedBuilder()
+                .setColor(0x5865F2)
+                .setTitle("🌐 K7Devs")
+                .setDescription(
+                    "Visit our website to learn more about K7Devs."
+                )
+                .setURL("https://k7devs.com")
+                .setFooter({
+                    text: "K7Devs • Made by iik27"
+                });
 
-        const embed = new EmbedBuilder()
-            .setColor(0x5865F2)
-            .setTitle("🌐 K7Devs")
-            .setDescription(
-                "Looking for professional development services?\n\n" +
-                "Visit **K7Devs** to learn more about our services, projects, and business."
-            )
-            .addFields({
-                name: "🔗 Website",
-                value: "https://k7devs.com",
-                inline: false
-            })
-            .setFooter({
-                text: "K7Devs • Made by iik27"
-            })
-            .setTimestamp();
+            const button = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setLabel("Visit Website")
+                        .setEmoji("🌐")
+                        .setURL("https://k7devs.com")
+                        .setStyle(ButtonStyle.Link)
+                );
 
-        const buttons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setLabel("🌐 Visit K7Devs")
-                    .setURL("https://k7devs.com")
-                    .setStyle(ButtonStyle.Link)
-            );
+            await interaction.reply({
+                embeds: [embed],
+                components: [button]
+            });
 
-        await interaction.reply({
-            embeds: [embed],
-            components: [buttons]
-        });
+            console.log("✅ /business responded successfully.");
+
+        } catch (error) {
+            console.error("❌ /business failed:", error);
+
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: "❌ Business command failed.",
+                    ephemeral: true
+                }).catch(console.error);
+            }
+        }
     }
 };
