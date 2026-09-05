@@ -26,7 +26,7 @@ client.commands = new Collection();
  * Load commands.
  */
 const kickCommand =
-    require("./commands/kick");
+    require("./commands/utility/kick");
 
 client.commands.set(
     kickCommand.data.name,
