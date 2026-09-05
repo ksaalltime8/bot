@@ -140,6 +140,22 @@ client.once("clientReady", () => {
         `🌐 Servers: ${client.guilds.cache.size}`
     );
 
+    // Streaming status
+    client.user.setPresence({
+        activities: [
+            {
+                name: "https://k7devs.com",
+                type: 1,
+                url: "https://www.twitch.tv/k7devs"
+            }
+        ],
+        status: "online"
+    });
+
+    console.log(
+        "🔴 Streaming status enabled!"
+    );
+
     console.log(
         "📺 Starting KICK checker..."
     );
@@ -157,6 +173,7 @@ client.once("clientReady", () => {
         );
     }
 });
+
 
 // =====================================
 // DISCORD ERROR
