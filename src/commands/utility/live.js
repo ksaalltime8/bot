@@ -1,10 +1,17 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
-const { getGuildConfig } = require("../../database/mongodb");
+const {
+    SlashCommandBuilder,
+    PermissionFlagsBits
+} = require("discord.js");
+
+const {
+    getGuildConfig
+} = require("../../database/mongodb");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("live")
-        .setDescription("Manage KICK live alerts")
+        .setDescription("KICK live stream alerts")
+
         .addSubcommand(sub =>
             sub
                 .setName("setup")
@@ -12,7 +19,7 @@ module.exports = {
                 .addStringOption(option =>
                     option
                         .setName("link")
-                        .setDescription("Your KICK channel link")
+                        .setDescription("Your KICK channel URL")
                         .setRequired(true)
                 )
                 .addChannelOption(option =>
@@ -22,23 +29,32 @@ module.exports = {
                         .setRequired(true)
                 )
         )
+
         .addSubcommand(sub =>
             sub
                 .setName("disable")
                 .setDescription("Disable KICK live alerts")
         )
+
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         ),
 
     async execute(interaction) {
         try {
-            const config = await getGuildConfig(interaction.guildId);
-            const action = interaction.options.getSubcommand();
+            const config = await getGuildConfig(
+                interaction.guildId
+            );
 
-            if (action === "setup") {
-                const link = interaction.options.getString("link");
-                const channel = interaction.options.getChannel("channel");
+            const subcommand =
+                interaction.options.getSubcommand();
+
+            if (subcommand === "setup") {
+                const link =
+                    interaction.options.getString("link");
+
+                const channel =
+                    interaction.options.getChannel("channel");
 
                 let url;
 
@@ -46,7 +62,7 @@ module.exports = {
                     url = new URL(link);
                 } catch {
                     return interaction.reply({
-                        content: "❌ Invalid KICK link.",
+                        content: "❌ Invalid KICK URL.",
                         ephemeral: true
                     });
                 }
@@ -56,25 +72,32 @@ module.exports = {
                     url.hostname !== "www.kick.com"
                 ) {
                     return interaction.reply({
-                        content: "❌ Please use a kick.com link.",
+                        content:
+                            "❌ The link must be from kick.com.",
                         ephemeral: true
                     });
                 }
 
-                const username = url.pathname
-                    .split("/")
-                    .filter(Boolean)[0];
+                const username =
+                    url.pathname
+                        .split("/")
+                        .filter(Boolean)[0];
 
                 if (!username) {
                     return interaction.reply({
-                        content: "❌ Couldn't find the KICK username.",
+                        content:
+                            "❌ I couldn't find the KICK username.",
                         ephemeral: true
                     });
                 }
 
                 config.kick.enabled = true;
-                config.kick.username = username.toLowerCase();
-                config.kick.channelId = channel.id;
+                config.kick.username =
+                    username.toLowerCase();
+
+                config.kick.channelId =
+                    channel.id;
+
                 config.kick.lastLive = false;
 
                 await config.save();
@@ -82,30 +105,36 @@ module.exports = {
                 return interaction.reply({
                     content:
                         `✅ **KICK live alerts enabled!**\n\n` +
-                        `🎥 KICK: **${username}**\n` +
-                        `📢 Alerts: ${channel}\n` +
+                        `🎥 Streamer: **${username}**\n` +
+                        `📢 Alert channel: ${channel}\n` +
                         `🔄 Checking every 60 seconds.`
                 });
             }
 
-            if (action === "disable") {
+            if (subcommand === "disable") {
                 config.kick.enabled = false;
                 config.kick.lastLive = false;
 
                 await config.save();
 
                 return interaction.reply({
-                    content: "✅ **KICK live alerts disabled.**"
+                    content:
+                        "✅ **KICK live alerts disabled.**"
                 });
             }
+
         } catch (error) {
-            console.error("LIVE COMMAND ERROR:", error);
+            console.error(
+                "❌ /live error:",
+                error
+            );
 
             if (!interaction.replied) {
                 await interaction.reply({
-                    content: "❌ An error occurred. Check the bot console.",
+                    content:
+                        "❌ The live command encountered an error.",
                     ephemeral: true
-                });
+                }).catch(() => {});
             }
         }
     }
