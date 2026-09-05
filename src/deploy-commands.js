@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
+
 const {
     REST,
     Routes
@@ -9,17 +10,23 @@ const {
 
 const commands = [];
 
-function loadCommands(directory) {
+function findCommands(directory) {
     if (!fs.existsSync(directory)) {
         return;
     }
 
-    for (const file of fs.readdirSync(directory)) {
-        const filePath = path.join(directory, file);
+    const files = fs.readdirSync(directory);
+
+    for (const file of files) {
+        const filePath = path.join(
+            directory,
+            file
+        );
+
         const stat = fs.statSync(filePath);
 
         if (stat.isDirectory()) {
-            loadCommands(filePath);
+            findCommands(filePath);
             continue;
         }
 
@@ -34,7 +41,9 @@ function loadCommands(directory) {
                 command.data &&
                 typeof command.execute === "function"
             ) {
-                commands.push(command.data.toJSON());
+                commands.push(
+                    command.data.toJSON()
+                );
 
                 console.log(
                     `✅ Found /${command.data.name}`
@@ -42,54 +51,67 @@ function loadCommands(directory) {
             }
         } catch (error) {
             console.error(
-                `❌ Failed loading ${filePath}`
+                `❌ Could not load ${filePath}`
             );
+
             console.error(error);
         }
     }
 }
 
-const commandsPath = path.join(
-    __dirname,
-    "commands"
+findCommands(
+    path.join(__dirname, "commands")
 );
 
-loadCommands(commandsPath);
-
 async function deploy() {
-    const token = process.env.DISCORD_TOKEN;
-    const clientId = process.env.CLIENT_ID;
-    const guildId = process.env.GUILD_ID;
+    const {
+        DISCORD_TOKEN,
+        CLIENT_ID,
+        GUILD_ID
+    } = process.env;
 
-    if (!token) {
-        throw new Error("DISCORD_TOKEN is missing.");
+    if (!DISCORD_TOKEN) {
+        throw new Error(
+            "DISCORD_TOKEN is missing"
+        );
     }
 
-    if (!clientId) {
-        throw new Error("CLIENT_ID is missing.");
+    if (!CLIENT_ID) {
+        throw new Error(
+            "CLIENT_ID is missing"
+        );
     }
 
-    if (!guildId) {
-        throw new Error("GUILD_ID is missing.");
+    if (!GUILD_ID) {
+        throw new Error(
+            "GUILD_ID is missing"
+        );
     }
 
     console.log("");
-    console.log(`📦 Loaded ${commands.length} commands.`);
     console.log(
-        commands.map(command => `/${command.name}`).join(", ")
+        `📦 ${commands.length} commands found`
+    );
+
+    console.log(
+        commands
+            .map(command => `/${command.name}`)
+            .join(", ")
     );
 
     const rest = new REST({
         version: "10"
-    }).setToken(token);
+    }).setToken(DISCORD_TOKEN);
 
     console.log("");
-    console.log("🚀 Registering commands with Discord...");
+    console.log(
+        "🚀 Registering commands..."
+    );
 
     await rest.put(
         Routes.applicationGuildCommands(
-            clientId,
-            guildId
+            CLIENT_ID,
+            GUILD_ID
         ),
         {
             body: commands
@@ -97,14 +119,21 @@ async function deploy() {
     );
 
     console.log("");
-    console.log("======================================");
-    console.log("✅ DISCORD COMMANDS REGISTERED");
-    console.log("======================================");
+    console.log(
+        "✅ Commands registered successfully!"
+    );
+
+    console.log(
+        "🎉 /live is now registered!"
+    );
 }
 
 deploy().catch(error => {
-    console.error("");
-    console.error("❌ COMMAND DEPLOYMENT FAILED");
+    console.error(
+        "❌ Command deployment failed:"
+    );
+
     console.error(error);
+
     process.exit(1);
 });
