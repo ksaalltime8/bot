@@ -19,7 +19,7 @@ const {
 } = require("./services/kickChecker");
 
 // ==========================================
-// HOSTINGER WEB SERVER
+// HOSTINGER SERVER
 // ==========================================
 
 const PORT = process.env.PORT || 3000;
@@ -32,9 +32,15 @@ const server = http.createServer((req, res) => {
     res.end("Discord bot is online!");
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌐 Web server listening on ${PORT}`);
-});
+server.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+        console.log(
+            `🌐 Web server listening on ${PORT}`
+        );
+    }
+);
 
 // ==========================================
 // DISCORD CLIENT
@@ -47,36 +53,29 @@ const client = new Client({
 });
 
 // ==========================================
-// COMMAND COLLECTION
+// COMMANDS
 // ==========================================
 
 client.commands = new Collection();
 
-// ==========================================
-// LOAD ALL COMMANDS
-// ==========================================
-
 function loadCommands(directory) {
     if (!fs.existsSync(directory)) {
-        console.log(
-            `⚠️ Command directory doesn't exist: ${directory}`
-        );
         return;
     }
 
-    const files = fs.readdirSync(directory);
+    for (const file of fs.readdirSync(directory)) {
+        const filePath = path.join(
+            directory,
+            file
+        );
 
-    for (const file of files) {
-        const filePath = path.join(directory, file);
         const stat = fs.statSync(filePath);
 
-        // Search folders recursively
         if (stat.isDirectory()) {
             loadCommands(filePath);
             continue;
         }
 
-        // Only load JavaScript files
         if (!file.endsWith(".js")) {
             continue;
         }
@@ -88,33 +87,18 @@ function loadCommands(directory) {
                 command.data &&
                 typeof command.execute === "function"
             ) {
-                const commandName =
-                    command.data.name;
-
-                // Prevent duplicate commands
-                if (client.commands.has(commandName)) {
-                    console.log(
-                        `⚠️ Duplicate command skipped: /${commandName}`
-                    );
-                    continue;
-                }
-
                 client.commands.set(
-                    commandName,
+                    command.data.name,
                     command
                 );
 
                 console.log(
-                    `📦 Loaded /${commandName}`
-                );
-            } else {
-                console.log(
-                    `⚠️ Skipped ${file} - missing data or execute`
+                    `📦 Loaded /${command.data.name}`
                 );
             }
         } catch (error) {
             console.error(
-                `❌ Failed to load ${filePath}`
+                `❌ Failed loading ${filePath}`
             );
 
             console.error(error);
@@ -131,7 +115,7 @@ console.log(
 );
 
 // ==========================================
-// COMMAND HANDLER
+// INTERACTIONS
 // ==========================================
 
 client.on(
@@ -153,7 +137,7 @@ client.on(
 
         if (!command) {
             console.error(
-                `❌ Command /${interaction.commandName} was not loaded.`
+                `❌ /${interaction.commandName} is not loaded`
             );
 
             return;
@@ -163,50 +147,34 @@ client.on(
             await command.execute(
                 interaction
             );
-
         } catch (error) {
-
             console.error(
-                `❌ Error executing /${interaction.commandName}:`
+                `❌ /${interaction.commandName} failed:`,
+                error
             );
 
-            console.error(error);
-
-            try {
-
-                if (
-                    interaction.replied ||
-                    interaction.deferred
-                ) {
-
-                    await interaction.followUp({
-                        content:
-                            "❌ Something went wrong while running this command.",
-                        ephemeral: true
-                    });
-
-                } else {
-
-                    await interaction.reply({
-                        content:
-                            "❌ Something went wrong while running this command.",
-                        ephemeral: true
-                    });
-
-                }
-
-            } catch (replyError) {
-                console.error(
-                    "❌ Could not send error message:",
-                    replyError
-                );
+            if (
+                interaction.replied ||
+                interaction.deferred
+            ) {
+                await interaction.followUp({
+                    content:
+                        "❌ Something went wrong.",
+                    ephemeral: true
+                }).catch(() => {});
+            } else {
+                await interaction.reply({
+                    content:
+                        "❌ Something went wrong.",
+                    ephemeral: true
+                }).catch(() => {});
             }
         }
     }
 );
 
 // ==========================================
-// DISCORD READY
+// READY
 // ==========================================
 
 client.once(
@@ -233,13 +201,10 @@ client.once(
         );
 
         console.log(
-            `📦 Commands loaded: ${client.commands.size}`
+            `📦 Commands: ${client.commands.size}`
         );
 
-        // ======================================
-        // STREAMING STATUS
-        // ======================================
-
+        // Streaming activity
         client.user.setPresence({
             activities: [
                 {
@@ -255,81 +220,57 @@ client.once(
             "🔴 Streaming status enabled!"
         );
 
-        // ======================================
-        // KICK CHECKER
-        // ======================================
-
-        console.log(
-            "📺 Starting KICK checker..."
-        );
-
+        // KICK checker
         try {
-
             startKickChecker(client);
 
             console.log(
-                "✅ KICK checker started!"
+                "📺 KICK checker started."
             );
-
         } catch (error) {
-
             console.error(
-                "❌ KICK checker failed:"
+                "❌ KICK checker failed:",
+                error
             );
-
-            console.error(error);
         }
     }
 );
 
 // ==========================================
-// DISCORD ERRORS
+// DISCORD ERROR
 // ==========================================
 
 client.on(
     "error",
     error => {
-
         console.error(
-            "❌ Discord client error:"
+            "❌ Discord error:",
+            error
         );
-
-        console.error(error);
     }
 );
 
 // ==========================================
-// START BOT
+// START
 // ==========================================
 
 async function start() {
 
     try {
 
-        console.log("");
         console.log(
             "🚀 Starting Discord bot..."
         );
 
-        // --------------------------------------
-        // DISCORD TOKEN
-        // --------------------------------------
-
         if (!process.env.DISCORD_TOKEN) {
-
             throw new Error(
-                "DISCORD_TOKEN is missing from Hostinger environment variables."
+                "DISCORD_TOKEN is missing."
             );
         }
 
-        // --------------------------------------
-        // MONGODB
-        // --------------------------------------
-
         if (!process.env.MONGODB_URI) {
-
             throw new Error(
-                "MONGODB_URI is missing from Hostinger environment variables."
+                "MONGODB_URI is missing."
             );
         }
 
@@ -343,10 +284,6 @@ async function start() {
             "✅ MongoDB connected!"
         );
 
-        // --------------------------------------
-        // DISCORD
-        // --------------------------------------
-
         console.log(
             "🔐 Connecting to Discord..."
         );
@@ -357,9 +294,8 @@ async function start() {
 
     } catch (error) {
 
-        console.error("");
         console.error(
-            "❌ BOT STARTUP FAILED"
+            "❌ BOT STARTUP FAILED:"
         );
 
         console.error(error);
