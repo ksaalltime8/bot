@@ -8,7 +8,7 @@ const guildConfigSchema = new mongoose.Schema(
             unique: true
         },
 
-        kick: {
+        kickLive: {
             enabled: {
                 type: Boolean,
                 default: false
