@@ -7,6 +7,7 @@ const {
 } = require("discord.js");
 
 module.exports = {
+
     data: new SlashCommandBuilder()
         .setName("business")
         .setDescription(
@@ -45,8 +46,8 @@ module.exports = {
                         )
                 );
 
-        return interaction.editReply({
-            content: "",
+        // BUSINESS ACKNOWLEDGES ITSELF.
+        return interaction.reply({
             embeds: [embed],
             components: [button]
         });
