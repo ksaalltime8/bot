@@ -1,4 +1,3 @@
-```js
 const axios = require("axios");
 
 const {
@@ -27,9 +26,7 @@ async function getKickChannel(username) {
                     "User-Agent":
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150.0.0.0 Safari/537.36"
                 },
-                timeout: 10000,
-                validateStatus: status =>
-                    status >= 200 && status < 300
+                timeout: 10000
             }
         );
 
@@ -48,7 +45,7 @@ async function getKickChannel(username) {
 }
 
 // ==========================================
-// CHECK ALL GUILDS
+// CHECK KICK
 // ==========================================
 
 async function checkKick(client) {
@@ -56,6 +53,7 @@ async function checkKick(client) {
         console.log(
             "⏳ Previous KICK check is still running. Skipping this cycle."
         );
+
         return;
     }
 
@@ -86,12 +84,11 @@ async function checkKick(client) {
                     continue;
                 }
 
-                const username =
-                    String(
-                        liveConfig.username || ""
-                    )
-                        .trim()
-                        .toLowerCase();
+                const username = String(
+                    liveConfig.username || ""
+                )
+                    .trim()
+                    .toLowerCase();
 
                 if (!username) {
                     continue;
@@ -100,8 +97,8 @@ async function checkKick(client) {
                 const data =
                     await getKickChannel(username);
 
-                // Don't change lastLive when KICK
-                // cannot be reached.
+                // Do not change the saved live state
+                // if the KICK API failed.
                 if (!data) {
                     continue;
                 }
@@ -129,8 +126,6 @@ async function checkKick(client) {
                             data
                         );
 
-                    // Only mark as live after the
-                    // alert was successfully sent.
                     if (sent) {
                         config.kickLive.lastLive = true;
 
@@ -176,7 +171,10 @@ async function checkKick(client) {
 
             } catch (error) {
                 console.error(
-                    `❌ Error checking ${config.kickLive?.username || "unknown streamer"}:`,
+                    `❌ Error checking ${
+                        config.kickLive?.username ||
+                        "unknown streamer"
+                    }:`,
                     error
                 );
             }
@@ -194,7 +192,7 @@ async function checkKick(client) {
 }
 
 // ==========================================
-// SEND LIVE ALERT
+// SEND LIVE MESSAGE
 // ==========================================
 
 async function sendLiveMessage(
@@ -240,7 +238,6 @@ async function sendLiveMessage(
             return false;
         }
 
-        // Make sure the channel supports sending.
         if (
             typeof channel.send !==
             "function"
@@ -308,12 +305,14 @@ async function sendLiveMessage(
                         ),
                     inline: true
                 },
+
                 {
                     name: "👀 Viewers",
                     value:
                         String(viewers),
                     inline: true
                 },
+
                 {
                     name: "📝 Title",
                     value:
@@ -326,7 +325,8 @@ async function sendLiveMessage(
             ],
 
             footer: {
-                text: "KICK Live Alert • K7Devs"
+                text:
+                    "KICK Live Alert • K7Devs"
             },
 
             timestamp:
@@ -343,7 +343,9 @@ async function sendLiveMessage(
             content:
                 `🔴 **${username} is LIVE!**\n${kickUrl}`,
 
-            embeds: [embed]
+            embeds: [
+                embed
+            ]
         });
 
         console.log(
@@ -354,7 +356,10 @@ async function sendLiveMessage(
 
     } catch (error) {
         console.error(
-            `❌ Failed to send KICK alert for ${config.kickLive?.username || "unknown"}:`,
+            `❌ Failed to send KICK alert for ${
+                config.kickLive?.username ||
+                "unknown"
+            }:`,
             error
         );
 
@@ -363,7 +368,7 @@ async function sendLiveMessage(
 }
 
 // ==========================================
-// START CHECKER
+// START KICK CHECKER
 // ==========================================
 
 function startKickChecker(client) {
@@ -372,26 +377,35 @@ function startKickChecker(client) {
     );
 
     // First check immediately.
-    checkKick(client).catch(error => {
-        console.error(
-            "❌ Initial KICK check failed:",
-            error
-        );
-    });
-
-    // Then check every 60 seconds.
-    setInterval(() => {
-        checkKick(client).catch(error => {
+    checkKick(client).catch(
+        error => {
             console.error(
-                "❌ Scheduled KICK check failed:",
+                "❌ Initial KICK check failed:",
                 error
             );
-        });
+        }
+    );
+
+    // Check every 60 seconds.
+    setInterval(() => {
+        checkKick(client).catch(
+            error => {
+                console.error(
+                    "❌ Scheduled KICK check failed:",
+                    error
+                );
+            }
+        );
     }, CHECK_INTERVAL);
 }
 
+// ==========================================
+// EXPORTS
+// ==========================================
+
 module.exports = {
     startKickChecker,
-    checkKick
+    checkKick,
+    getKickChannel
 };
-```
+
