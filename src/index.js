@@ -97,8 +97,7 @@ const server = http.createServer(
     (req, res) => {
 
         res.writeHead(200, {
-            "Content-Type":
-                "text/plain"
+            "Content-Type": "text/plain"
         });
 
         res.end(
@@ -309,7 +308,7 @@ async function setupAutoMod() {
         "================================"
     );
     console.log(
-        "       AUTOMOD SETUP"
+        "        AUTOMOD CHECK"
     );
     console.log(
         "================================"
@@ -317,27 +316,32 @@ async function setupAutoMod() {
 
     let totalRules = 0;
 
+    const guilds =
+        [...client.guilds.cache.values()];
+
     console.log(
-        `🌐 Servers: ${client.guilds.cache.size}`
+        `🌐 Checking ${guilds.length} server(s)...`
     );
 
-    for (
-        const guild of client.guilds.cache.values()
-    ) {
+    for (const guild of guilds) {
 
         try {
 
             console.log("");
             console.log(
-                `🛡️ Checking AutoMod: ${guild.name}`
+                `🛡️ ${guild.name}`
             );
 
             // ==================================
-            // CHECK BOT PERMISSIONS
+            // FETCH BOT MEMBER
             // ==================================
 
             const me =
                 await guild.members.fetchMe();
+
+            // ==================================
+            // PERMISSION CHECK
+            // ==================================
 
             if (
                 !me.permissions.has(
@@ -346,14 +350,14 @@ async function setupAutoMod() {
             ) {
 
                 console.log(
-                    `⚠️ ${guild.name}: Missing Manage Server permission.`
+                    "⚠️ Missing Manage Server permission."
                 );
 
                 continue;
             }
 
             // ==================================
-            // FETCH EXISTING RULES
+            // GET EXISTING RULES
             // ==================================
 
             let rules =
@@ -364,6 +368,23 @@ async function setupAutoMod() {
             );
 
             // ==================================
+            // MAXIMUM RULES
+            // ==================================
+
+            /*
+             * Discord currently limits each guild
+             * to:
+             *
+             * 6 Keyword rules
+             * 1 Keyword Preset rule
+             * 1 Spam rule
+             * 1 Mention Spam rule
+             * 1 Member Profile rule
+             *
+             * Total: 10
+             */
+
+            // ==================================
             // KEYWORD RULES
             // ==================================
 
@@ -371,37 +392,42 @@ async function setupAutoMod() {
                 {
                     name: "K7Devs Anti Scam Links",
                     keywords: [
-                        "*free-nitro-scam-example*"
+                        "free-nitro-scam-example"
                     ]
                 },
+
                 {
                     name: "K7Devs Anti Phishing",
                     keywords: [
-                        "*verify-account-example*"
+                        "verify-account-example"
                     ]
                 },
+
                 {
                     name: "K7Devs Anti Fake Giveaway",
                     keywords: [
-                        "*fake-giveaway-example*"
+                        "fake-giveaway-example"
                     ]
                 },
+
                 {
                     name: "K7Devs Anti Malicious Links",
                     keywords: [
-                        "*malicious-link-example*"
+                        "malicious-link-example"
                     ]
                 },
+
                 {
                     name: "K7Devs Anti Fake Staff",
                     keywords: [
-                        "*fake-staff-example*"
+                        "fake-staff-example"
                     ]
                 },
+
                 {
                     name: "K7Devs Anti Scam Messages",
                     keywords: [
-                        "*scam-message-example*"
+                        "scam-message-example"
                     ]
                 }
             ];
@@ -425,14 +451,14 @@ async function setupAutoMod() {
                     break;
                 }
 
-                const alreadyExists =
+                const exists =
                     rules.some(
                         rule =>
                             rule.name ===
                             ruleData.name
                     );
 
-                if (alreadyExists) {
+                if (exists) {
                     continue;
                 }
 
@@ -469,14 +495,17 @@ async function setupAutoMod() {
 
                     keywordCount++;
 
+                    rules =
+                        await guild.autoModerationRules.fetch();
+
                     console.log(
-                        `✅ Created keyword rule: ${ruleData.name}`
+                        `   ✅ ${ruleData.name}`
                     );
 
                 } catch (error) {
 
                     console.error(
-                        `❌ Failed to create ${ruleData.name}:`,
+                        `   ❌ ${ruleData.name}:`,
                         error.message
                     );
                 }
@@ -490,10 +519,10 @@ async function setupAutoMod() {
                 await guild.autoModerationRules.fetch();
 
             // ==================================
-            // SPAM RULE
+            // SPAM
             // ==================================
 
-            const hasSpamRule =
+            const hasSpam =
                 rules.some(
                     rule =>
                         rule.triggerType ===
@@ -502,7 +531,7 @@ async function setupAutoMod() {
 
             if (
                 rules.size < 10 &&
-                !hasSpamRule
+                !hasSpam
             ) {
 
                 try {
@@ -532,13 +561,13 @@ async function setupAutoMod() {
                     });
 
                     console.log(
-                        "✅ Created Anti Spam rule"
+                        "   ✅ K7Devs Anti Spam"
                     );
 
                 } catch (error) {
 
                     console.error(
-                        "❌ Failed to create Anti Spam:",
+                        "   ❌ Anti Spam:",
                         error.message
                     );
                 }
@@ -555,7 +584,7 @@ async function setupAutoMod() {
             // KEYWORD PRESET
             // ==================================
 
-            const hasPresetRule =
+            const hasPreset =
                 rules.some(
                     rule =>
                         rule.triggerType ===
@@ -564,7 +593,7 @@ async function setupAutoMod() {
 
             if (
                 rules.size < 10 &&
-                !hasPresetRule
+                !hasPreset
             ) {
 
                 try {
@@ -572,7 +601,7 @@ async function setupAutoMod() {
                     await guild.autoModerationRules.create({
 
                         name:
-                            "K7Devs Content Filter",
+                            "K7Devs Profanity Filter",
 
                         eventType:
                             AutoModerationRuleEventType.MessageSend,
@@ -600,13 +629,13 @@ async function setupAutoMod() {
                     });
 
                     console.log(
-                        "✅ Created Content Filter rule"
+                        "   ✅ K7Devs Profanity Filter"
                     );
 
                 } catch (error) {
 
                     console.error(
-                        "❌ Failed to create Content Filter:",
+                        "   ❌ Profanity Filter:",
                         error.message
                     );
                 }
@@ -623,7 +652,7 @@ async function setupAutoMod() {
             // MENTION SPAM
             // ==================================
 
-            const hasMentionRule =
+            const hasMentionSpam =
                 rules.some(
                     rule =>
                         rule.triggerType ===
@@ -632,7 +661,7 @@ async function setupAutoMod() {
 
             if (
                 rules.size < 10 &&
-                !hasMentionRule
+                !hasMentionSpam
             ) {
 
                 try {
@@ -640,7 +669,7 @@ async function setupAutoMod() {
                     await guild.autoModerationRules.create({
 
                         name:
-                            "K7Devs Anti Mention Spam",
+                            "K7Devs Mention Protection",
 
                         eventType:
                             AutoModerationRuleEventType.MessageSend,
@@ -666,35 +695,35 @@ async function setupAutoMod() {
                     });
 
                     console.log(
-                        "✅ Created Anti Mention Spam rule"
+                        "   ✅ K7Devs Mention Protection"
                     );
 
                 } catch (error) {
 
                     console.error(
-                        "❌ Failed to create Mention Spam:",
+                        "   ❌ Mention Protection:",
                         error.message
                     );
                 }
             }
 
             // ==================================
-            // FINAL COUNT
+            // FINAL FETCH
             // ==================================
 
             rules =
                 await guild.autoModerationRules.fetch();
 
-            totalRules += rules.size;
-
             console.log(
-                `📊 ${guild.name}: ${rules.size} AutoMod rule(s)`
+                `📊 Final rules: ${rules.size}/10`
             );
+
+            totalRules += rules.size;
 
         } catch (error) {
 
             console.error(
-                `❌ AutoMod error in ${guild.name}:`,
+                `❌ AutoMod failed for ${guild.name}:`,
                 error
             );
         }
@@ -710,29 +739,8 @@ async function setupAutoMod() {
     );
 
     console.log(
-        `🛡️ TOTAL AUTMOD RULES: ${totalRules}`
+        `🛡️ TOTAL AUT0MOD RULES: ${totalRules}`
     );
-
-    console.log(
-        `🎯 TARGET: 100`
-    );
-
-    if (totalRules >= 100) {
-
-        console.log(
-            "🎉 100 AutoMod rules reached!"
-        );
-
-        console.log(
-            "🔵 Discord should award the Uses AutoMod badge."
-        );
-
-    } else {
-
-        console.log(
-            `⏳ ${100 - totalRules} more rule(s) needed.`
-        );
-    }
 
     console.log(
         "================================"
@@ -940,6 +948,10 @@ async function handleLive(
         const subcommand =
             interaction.options.getSubcommand();
 
+        // ======================================
+        // SETUP
+        // ======================================
+
         if (
             subcommand === "setup"
         ) {
@@ -999,11 +1011,15 @@ async function handleLive(
 
             config.kickLive = {
                 enabled: true,
+
                 username:
                     username.toLowerCase(),
+
                 channelId:
                     channel.id,
-                lastLive: false
+
+                lastLive:
+                    false
             };
 
             await config.save();
@@ -1015,6 +1031,10 @@ async function handleLive(
                 `🔗 https://kick.com/${username}`
             );
         }
+
+        // ======================================
+        // DISABLE
+        // ======================================
 
         if (
             subcommand === "disable"
@@ -1081,6 +1101,10 @@ client.on(
             `📥 Received /${interaction.commandName}`
         );
 
+        // ======================================
+        // LIVE
+        // ======================================
+
         if (
             interaction.commandName ===
             "live"
@@ -1091,6 +1115,10 @@ client.on(
             );
         }
 
+        // ======================================
+        // LIVECHECK
+        // ======================================
+
         if (
             interaction.commandName ===
             "livecheck"
@@ -1100,6 +1128,10 @@ client.on(
                 interaction
             );
         }
+
+        // ======================================
+        // BUSINESS
+        // ======================================
 
         if (
             interaction.commandName ===
@@ -1183,7 +1215,7 @@ client.once(
         );
 
         // ======================================
-        // STREAMING
+        // STREAMING STATUS
         // ======================================
 
         client.user.setPresence({
