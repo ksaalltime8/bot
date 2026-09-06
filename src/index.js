@@ -32,7 +32,6 @@ const {
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-
 const PORT = process.env.PORT || 5000;
 
 // ==========================================
@@ -62,27 +61,19 @@ console.log(
 );
 
 if (!TOKEN) {
-    throw new Error(
-        "DISCORD_TOKEN is missing."
-    );
+    throw new Error("DISCORD_TOKEN is missing.");
 }
 
 if (!CLIENT_ID) {
-    throw new Error(
-        "CLIENT_ID is missing."
-    );
+    throw new Error("CLIENT_ID is missing.");
 }
 
 if (!GUILD_ID) {
-    throw new Error(
-        "GUILD_ID is missing."
-    );
+    throw new Error("GUILD_ID is missing.");
 }
 
 if (!process.env.MONGODB_URI) {
-    throw new Error(
-        "MONGODB_URI is missing."
-    );
+    throw new Error("MONGODB_URI is missing.");
 }
 
 // ==========================================
@@ -91,10 +82,8 @@ if (!process.env.MONGODB_URI) {
 
 const server = http.createServer(
     (req, res) => {
-
         res.writeHead(200, {
-            "Content-Type":
-                "text/plain"
+            "Content-Type": "text/plain"
         });
 
         res.end(
@@ -107,7 +96,6 @@ server.listen(
     PORT,
     "0.0.0.0",
     () => {
-
         console.log(
             `🌐 Web server listening on ${PORT}`
         );
@@ -190,7 +178,6 @@ const liveCheckCommand =
 let businessCommand = null;
 
 try {
-
     businessCommand =
         require(
             "./commands/utility/business"
@@ -222,7 +209,6 @@ if (
     businessCommand &&
     businessCommand.data
 ) {
-
     commands.push(
         businessCommand.data.toJSON()
     );
@@ -233,7 +219,6 @@ console.log(
 );
 
 for (const command of commands) {
-
     console.log(
         `📋 /${command.name}`
     );
@@ -278,11 +263,12 @@ async function registerCommands() {
         for (
             const command of result
         ) {
-
             console.log(
                 `✅ /${command.name}`
             );
         }
+
+        return true;
 
     } catch (error) {
 
@@ -290,7 +276,14 @@ async function registerCommands() {
             "❌ Command registration failed:"
         );
 
-        console.error(error);
+        console.error(
+            error?.status ||
+            error?.code ||
+            error?.message ||
+            error
+        );
+
+        return false;
     }
 }
 
@@ -451,7 +444,6 @@ async function handleLiveCheck(
                 .setTimestamp();
 
         if (thumbnail) {
-
             embed.setImage(
                 thumbnail
             );
@@ -512,11 +504,8 @@ async function handleLive(
             let url;
 
             try {
-
                 url = new URL(link);
-
             } catch {
-
                 return interaction.editReply(
                     "❌ Invalid KICK URL."
                 );
@@ -529,7 +518,6 @@ async function handleLive(
                 hostname !== "kick.com" &&
                 hostname !== "www.kick.com"
             ) {
-
                 return interaction.editReply(
                     "❌ Please use a KICK URL."
                 );
@@ -541,7 +529,6 @@ async function handleLive(
                     .filter(Boolean)[0];
 
             if (!username) {
-
                 return interaction.editReply(
                     "❌ KICK username not found."
                 );
@@ -640,7 +627,6 @@ client.on(
             interaction.commandName ===
             "live"
         ) {
-
             return handleLive(
                 interaction
             );
@@ -650,7 +636,6 @@ client.on(
             interaction.commandName ===
             "livecheck"
         ) {
-
             return handleLiveCheck(
                 interaction
             );
@@ -714,7 +699,7 @@ client.on(
 
 client.once(
     "ready",
-    async () => {
+    () => {
 
         console.log("");
         console.log(
@@ -742,7 +727,6 @@ client.once(
         // ======================================
 
         client.user.setPresence({
-
             activities: [
                 {
                     name:
@@ -762,12 +746,6 @@ client.once(
         console.log(
             "🔴 Streaming status enabled!"
         );
-
-        // ======================================
-        // REGISTER COMMANDS
-        // ======================================
-
-        await registerCommands();
 
         // ======================================
         // KICK CHECKER
@@ -790,6 +768,43 @@ client.once(
                 error
             );
         }
+
+        // ======================================
+        // COMMAND REGISTRATION
+        // ======================================
+        // IMPORTANT:
+        // Do NOT await this here.
+        // The bot stays fully online even if
+        // Discord's command REST request hangs.
+
+        registerCommands()
+            .then(success => {
+
+                if (success) {
+
+                    console.log(
+                        "🟢 Command registration finished."
+                    );
+
+                } else {
+
+                    console.error(
+                        "⚠️ Bot is online, but command registration failed."
+                    );
+                }
+
+            })
+            .catch(error => {
+
+                console.error(
+                    "❌ Unexpected command registration error:",
+                    error
+                );
+            });
+
+        console.log(
+            "🟢 Bot startup completed!"
+        );
     }
 );
 
@@ -820,6 +835,32 @@ client.on(
 );
 
 // ==========================================
+// PROCESS ERRORS
+// ==========================================
+
+process.on(
+    "unhandledRejection",
+    error => {
+
+        console.error(
+            "❌ Unhandled promise rejection:",
+            error
+        );
+    }
+);
+
+process.on(
+    "uncaughtException",
+    error => {
+
+        console.error(
+            "❌ Uncaught exception:",
+            error
+        );
+    }
+);
+
+// ==========================================
 // LOGIN
 // ==========================================
 
@@ -831,6 +872,10 @@ async function start() {
             "🚀 Starting Discord bot..."
         );
 
+        // ======================================
+        // MONGODB
+        // ======================================
+
         console.log(
             "🍃 Connecting to MongoDB..."
         );
@@ -839,12 +884,15 @@ async function start() {
             connectDatabase(),
 
             new Promise((_, reject) => {
+
                 setTimeout(() => {
+
                     reject(
                         new Error(
                             "MongoDB connection timed out after 15 seconds."
                         )
                     );
+
                 }, 15000);
             })
         ]);
@@ -852,6 +900,10 @@ async function start() {
         console.log(
             "✅ MongoDB connected!"
         );
+
+        // ======================================
+        // DISCORD
+        // ======================================
 
         console.log(
             "🔐 Connecting to Discord..."
@@ -864,11 +916,13 @@ async function start() {
                 console.error(
                     "❌ DISCORD LOGIN TIMEOUT"
                 );
+
                 console.error(
                     "Discord did not complete the connection within 30 seconds."
                 );
+
                 console.error(
-                    "Check your DISCORD_TOKEN and Hostinger network configuration."
+                    "Check DISCORD_TOKEN and Hostinger network configuration."
                 );
 
                 process.exit(1);
@@ -918,32 +972,6 @@ async function start() {
         process.exit(1);
     }
 }
-
-// ==========================================
-// PROCESS ERRORS
-// ==========================================
-
-process.on(
-    "unhandledRejection",
-    error => {
-
-        console.error(
-            "❌ Unhandled rejection:",
-            error
-        );
-    }
-);
-
-process.on(
-    "uncaughtException",
-    error => {
-
-        console.error(
-            "❌ Uncaught exception:",
-            error
-        );
-    }
-);
 
 // ==========================================
 // START
