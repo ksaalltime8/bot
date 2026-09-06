@@ -496,7 +496,7 @@ async function handleLiveCheck(
         }
 
         console.log(
-            `🔴 ${username} is LIVE!`
+            `🔴 ${username} is LIVE! @everyone`
         );
 
         return interaction.editReply({
