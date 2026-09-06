@@ -757,7 +757,7 @@ client.once(
                 }
             ],
 
-            status: "online"
+            status: "idle"
         });
 
         console.log(
