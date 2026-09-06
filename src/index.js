@@ -664,7 +664,7 @@ client.once(
             activities: [
                 {
                     name:
-                        "Live on KICK",
+                        "/livecheck, /business",
 
                     type:
                         ActivityType.Streaming,
