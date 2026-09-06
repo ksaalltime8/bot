@@ -1,4 +1,3 @@
-```js
 require("dotenv").config();
 
 const http = require("http");
@@ -1064,4 +1063,3 @@ async function start() {
 // ==========================================
 
 start();
-```
