@@ -47,6 +47,7 @@ console.log(
 if (!TOKEN) throw new Error("DISCORD_TOKEN is missing.");
 if (!CLIENT_ID) throw new Error("CLIENT_ID is missing.");
 if (!GUILD_ID) throw new Error("GUILD_ID is missing.");
+
 if (!process.env.MONGODB_URI) {
     throw new Error("MONGODB_URI is missing.");
 }
@@ -56,6 +57,7 @@ if (!process.env.MONGODB_URI) {
 // ==========================================
 
 const server = http.createServer((req, res) => {
+
     res.writeHead(200, {
         "Content-Type": "text/plain"
     });
@@ -64,7 +66,10 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌐 Web server listening on ${PORT}`);
+
+    console.log(
+        `🌐 Web server listening on ${PORT}`
+    );
 });
 
 // ==========================================
@@ -137,7 +142,10 @@ try {
 
 } catch (error) {
 
-    console.error("❌ Failed to load /business:");
+    console.error(
+        "❌ Failed to load /business:"
+    );
+
     console.error(error);
 }
 
@@ -151,6 +159,7 @@ const commands = [
 ];
 
 if (businessCommand?.data) {
+
     commands.push(
         businessCommand.data.toJSON()
     );
@@ -161,6 +170,7 @@ console.log(
 );
 
 for (const command of commands) {
+
     console.log(
         `📋 /${command.name}`
     );
@@ -225,6 +235,7 @@ async function getKickChannel(username) {
                 `https://kick.com/api/v2/channels/${encodeURIComponent(username)}`,
                 {
                     headers: {
+
                         Accept:
                             "application/json",
 
@@ -251,12 +262,190 @@ async function getKickChannel(username) {
 }
 
 // ==========================================
+// DYNAMIC DISCORD PRESENCE
+// ==========================================
+
+let presenceInterval = null;
+
+let lastPresenceState = null;
+
+let lastViewerCount = null;
+
+async function updateBotPresence() {
+
+    try {
+
+        const username = "iik27";
+
+        const data =
+            await getKickChannel(
+                username
+            );
+
+        // ======================================
+        // KICK API FAILED
+        // ======================================
+
+        if (!data) {
+
+            console.log(
+                "⚠️ KICK status unavailable. Keeping current Discord presence."
+            );
+
+            return;
+        }
+
+        // ======================================
+        // OFFLINE
+        // ======================================
+
+        if (!data.livestream) {
+
+            const offlineState =
+                "offline";
+
+            // Only update Discord if the state
+            // actually changed.
+
+            if (
+                lastPresenceState !==
+                offlineState
+            ) {
+
+                client.user.setPresence({
+
+                    activities: [
+                        {
+                            name:
+                                "/livecheck and /business",
+
+                            type:
+                                ActivityType.Watching
+                        }
+                    ],
+
+                    status: "online"
+                });
+
+                lastPresenceState =
+                    offlineState;
+
+                lastViewerCount =
+                    null;
+
+                console.log(
+                    "⚫ Discord presence: Watching /livecheck and /business"
+                );
+            }
+
+            return;
+        }
+
+        // ======================================
+        // LIVE
+        // ======================================
+
+        const stream =
+            data.livestream;
+
+        const viewers =
+            Number(
+                stream.viewer_count || 0
+            );
+
+        const liveState =
+            "live";
+
+        // Update when:
+        // 1. We just went live
+        // 2. Viewer count changed
+
+        if (
+            lastPresenceState !== liveState ||
+            lastViewerCount !== viewers
+        ) {
+
+            client.user.setPresence({
+
+                activities: [
+                    {
+                        name:
+                            `${viewers.toLocaleString()} viewers`,
+
+                        type:
+                            ActivityType.Streaming,
+
+                        url:
+                            "https://kick.com/iik27"
+                    }
+                ],
+
+                status: "online"
+            });
+
+            lastPresenceState =
+                liveState;
+
+            lastViewerCount =
+                viewers;
+
+            console.log(
+                `🔴 Discord presence: Streaming ${viewers.toLocaleString()} viewers`
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "❌ Dynamic presence update failed:",
+            error?.message ||
+            error
+        );
+    }
+}
+
+// ==========================================
+// START DYNAMIC PRESENCE CHECKER
+// ==========================================
+
+function startPresenceChecker() {
+
+    // Prevent duplicate intervals.
+
+    if (presenceInterval) {
+
+        clearInterval(
+            presenceInterval
+        );
+    }
+
+    // Check immediately.
+
+    updateBotPresence();
+
+    // Check KICK every 60 seconds.
+
+    presenceInterval =
+        setInterval(
+            updateBotPresence,
+            60 * 1000
+        );
+
+    console.log(
+        "📡 Dynamic KICK presence checker started!"
+    );
+}
+
+// ==========================================
 // /LIVECHECK
 // ==========================================
 
-async function handleLiveCheck(interaction) {
+async function handleLiveCheck(
+    interaction
+) {
 
     // ACK IMMEDIATELY
+
     await interaction.deferReply();
 
     try {
@@ -268,7 +457,9 @@ async function handleLiveCheck(interaction) {
         );
 
         const data =
-            await getKickChannel(username);
+            await getKickChannel(
+                username
+            );
 
         if (!data) {
 
@@ -280,18 +471,27 @@ async function handleLiveCheck(interaction) {
         if (!data.livestream) {
 
             return interaction.editReply({
+
                 embeds: [
+
                     new EmbedBuilder()
-                        .setColor(0x2b2d31)
+
+                        .setColor(
+                            0x2b2d31
+                        )
+
                         .setTitle(
                             "⚫ KICK Live Check"
                         )
+
                         .setDescription(
                             `**${username} is not live right now.**`
                         )
+
                         .setURL(
                             `https://kick.com/${username}`
                         )
+
                         .setTimestamp()
                 ]
             });
@@ -319,49 +519,82 @@ async function handleLiveCheck(interaction) {
 
         const embed =
             new EmbedBuilder()
-                .setColor(0x53fc18)
+
+                .setColor(
+                    0x53fc18
+                )
+
                 .setTitle(
                     "🔴 iik27 is LIVE!"
                 )
+
                 .setURL(
                     `https://kick.com/${username}`
                 )
+
                 .setDescription(
                     "**iik27 is currently live on KICK!**"
                 )
+
                 .addFields(
+
                     {
-                        name: "📝 Title",
+                        name:
+                            "📝 Title",
+
                         value:
-                            String(title).slice(
+                            String(
+                                title
+                            ).slice(
                                 0,
                                 1024
                             )
                     },
+
                     {
-                        name: "🎮 Category",
+                        name:
+                            "🎮 Category",
+
                         value:
-                            String(category).slice(
+                            String(
+                                category
+                            ).slice(
                                 0,
                                 1024
                             ),
-                        inline: true
+
+                        inline:
+                            true
                     },
+
                     {
-                        name: "👀 Viewers",
+                        name:
+                            "👀 Viewers",
+
                         value:
-                            String(viewers),
-                        inline: true
+                            String(
+                                viewers
+                            ),
+
+                        inline:
+                            true
                     }
                 )
+
                 .setTimestamp();
 
         if (thumbnail) {
-            embed.setImage(thumbnail);
+
+            embed.setImage(
+                thumbnail
+            );
         }
 
         return interaction.editReply({
-            embeds: [embed]
+
+            embeds: [
+                embed
+            ]
         });
 
     } catch (error) {
@@ -373,7 +606,9 @@ async function handleLiveCheck(interaction) {
 
         return interaction.editReply(
             "❌ Error checking KICK."
-        ).catch(() => {});
+        ).catch(
+            () => {}
+        );
     }
 }
 
@@ -381,9 +616,12 @@ async function handleLiveCheck(interaction) {
 // /LIVE
 // ==========================================
 
-async function handleLive(interaction) {
+async function handleLive(
+    interaction
+) {
 
     // ACK IMMEDIATELY
+
     await interaction.deferReply({
         ephemeral: true
     });
@@ -397,7 +635,9 @@ async function handleLive(interaction) {
         // SETUP
         // ======================================
 
-        if (subcommand === "setup") {
+        if (
+            subcommand === "setup"
+        ) {
 
             const link =
                 interaction.options.getString(
@@ -413,7 +653,10 @@ async function handleLive(interaction) {
 
             try {
 
-                url = new URL(link);
+                url =
+                    new URL(
+                        link
+                    );
 
             } catch {
 
@@ -426,8 +669,10 @@ async function handleLive(interaction) {
                 url.hostname.toLowerCase();
 
             if (
-                hostname !== "kick.com" &&
-                hostname !== "www.kick.com"
+                hostname !==
+                    "kick.com" &&
+                hostname !==
+                    "www.kick.com"
             ) {
 
                 return interaction.editReply(
@@ -453,20 +698,30 @@ async function handleLive(interaction) {
                 );
 
             config.kickLive = {
-                enabled: true,
+
+                enabled:
+                    true,
+
                 username:
                     username.toLowerCase(),
+
                 channelId:
                     channel.id,
-                lastLive: false
+
+                lastLive:
+                    false
             };
 
             await config.save();
 
             return interaction.editReply(
+
                 `🔴 **KICK live alerts enabled!**\n\n` +
+
                 `🎥 Streamer: **${username}**\n` +
+
                 `📢 Channel: ${channel}\n` +
+
                 `🔗 https://kick.com/${username}`
             );
         }
@@ -475,7 +730,10 @@ async function handleLive(interaction) {
         // DISABLE
         // ======================================
 
-        if (subcommand === "disable") {
+        if (
+            subcommand ===
+            "disable"
+        ) {
 
             const config =
                 await getGuildConfig(
@@ -483,9 +741,14 @@ async function handleLive(interaction) {
                 );
 
             config.kickLive = {
+
                 ...(config.kickLive || {}),
-                enabled: false,
-                lastLive: false
+
+                enabled:
+                    false,
+
+                lastLive:
+                    false
             };
 
             await config.save();
@@ -504,7 +767,9 @@ async function handleLive(interaction) {
 
         return interaction.editReply(
             "❌ Something went wrong."
-        ).catch(() => {});
+        ).catch(
+            () => {}
+        );
     }
 }
 
@@ -516,7 +781,9 @@ client.on(
     "interactionCreate",
     async interaction => {
 
-        if (!interaction.isChatInputCommand()) {
+        if (
+            !interaction.isChatInputCommand()
+        ) {
             return;
         }
 
@@ -531,25 +798,31 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === "business"
+                interaction.commandName ===
+                "business"
             ) {
 
                 if (
                     !businessCommand ||
-                    typeof businessCommand.execute !==
+                    typeof
+                        businessCommand.execute !==
                         "function"
                 ) {
 
                     return interaction.reply({
+
                         content:
                             "❌ Business command unavailable.",
-                        ephemeral: true
+
+                        ephemeral:
+                            true
                     });
                 }
 
-                return await businessCommand.execute(
-                    interaction
-                );
+                return await
+                    businessCommand.execute(
+                        interaction
+                    );
             }
 
             // ==================================
@@ -557,12 +830,14 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === "livecheck"
+                interaction.commandName ===
+                "livecheck"
             ) {
 
-                return await handleLiveCheck(
-                    interaction
-                );
+                return await
+                    handleLiveCheck(
+                        interaction
+                    );
             }
 
             // ==================================
@@ -570,12 +845,14 @@ client.on(
             // ==================================
 
             if (
-                interaction.commandName === "live"
+                interaction.commandName ===
+                "live"
             ) {
 
-                return await handleLive(
-                    interaction
-                );
+                return await
+                    handleLive(
+                        interaction
+                    );
             }
 
         } catch (error) {
@@ -599,9 +876,12 @@ client.on(
                 } else {
 
                     await interaction.reply({
+
                         content:
                             "❌ Something went wrong.",
-                        ephemeral: true
+
+                        ephemeral:
+                            true
                     });
                 }
 
@@ -625,12 +905,15 @@ client.once(
     () => {
 
         console.log("");
+
         console.log(
             "================================"
         );
+
         console.log(
             "       DISCORD CONNECTED"
         );
+
         console.log(
             "================================"
         );
@@ -647,27 +930,15 @@ client.once(
             `🌐 Servers: ${client.guilds.cache.size}`
         );
 
-        client.user.setPresence({
+        // ======================================
+        // START DYNAMIC KICK PRESENCE
+        // ======================================
 
-            activities: [
-                {
-                    name:
-                        "/livecheck, /business",
+        startPresenceChecker();
 
-                    type:
-                        ActivityType.Streaming,
-
-                    url:
-                        "https://kick.com/iik27"
-                }
-            ],
-
-            status: "online"
-        });
-
-        console.log(
-            "🔴 Streaming status enabled!"
-        );
+        // ======================================
+        // START KICK LIVE ALERT CHECKER
+        // ======================================
 
         try {
 
@@ -687,8 +958,7 @@ client.once(
             );
         }
 
-        // Register separately.
-        // It cannot block interactions.
+        // Register commands separately.
 
         registerCommands();
 
@@ -782,10 +1052,6 @@ async function start() {
             "🚀 Starting Discord bot..."
         );
 
-        // Connect database but don't make
-        // Discord interaction handling depend
-        // on it.
-
         console.log(
             "🍃 Connecting to MongoDB..."
         );
@@ -811,12 +1077,15 @@ async function start() {
     } catch (error) {
 
         console.error("");
+
         console.error(
             "================================"
         );
+
         console.error(
             "❌ BOT STARTUP FAILED"
         );
+
         console.error(
             "================================"
         );
