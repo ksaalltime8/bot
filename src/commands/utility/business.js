@@ -12,11 +12,14 @@ module.exports = {
         .setDescription("Visit the K7Devs business website"),
 
     async execute(interaction) {
-        // Acknowledge Discord immediately.
-        // This prevents "This application did not respond".
-        await interaction.deferReply();
+        console.log("🌐 /business execution started.");
 
         try {
+            // Acknowledge the interaction immediately.
+            await interaction.deferReply();
+
+            console.log("✅ /business interaction acknowledged.");
+
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
                 .setTitle("🌐 K7Devs")
@@ -26,7 +29,8 @@ module.exports = {
                 .setURL("https://k7devs.com")
                 .setFooter({
                     text: "K7Devs • Made by iik27"
-                });
+                })
+                .setTimestamp();
 
             const button = new ActionRowBuilder()
                 .addComponents(
@@ -42,22 +46,40 @@ module.exports = {
                 components: [button]
             });
 
-            console.log("✅ /business responded successfully.");
+            console.log(
+                "✅ /business responded successfully."
+            );
 
         } catch (error) {
-            console.error("❌ /business failed:", error);
+            console.error(
+                "❌ /business failed:"
+            );
 
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({
-                    content: "❌ Business command failed."
-                }).catch(console.error);
-            } else {
-                await interaction.reply({
-                    content: "❌ Business command failed.",
-                    ephemeral: true
-                }).catch(console.error);
+            console.error(error);
+
+            try {
+                if (
+                    interaction.deferred ||
+                    interaction.replied
+                ) {
+                    await interaction.editReply({
+                        content:
+                            "❌ Business command failed."
+                    });
+                } else {
+                    await interaction.reply({
+                        content:
+                            "❌ Business command failed.",
+                        ephemeral: true
+                    });
+                }
+            } catch (replyError) {
+                console.error(
+                    "❌ Failed to send /business error response:"
+                );
+
+                console.error(replyError);
             }
         }
     }
 };
-
