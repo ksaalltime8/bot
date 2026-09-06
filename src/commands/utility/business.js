@@ -12,14 +12,9 @@ module.exports = {
         .setDescription("Visit the K7Devs business website"),
 
     async execute(interaction) {
-        console.log("🌐 /business execution started.");
+        await interaction.deferReply();
 
         try {
-            // Acknowledge the interaction immediately.
-            await interaction.deferReply();
-
-            console.log("✅ /business interaction acknowledged.");
-
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
                 .setTitle("🌐 K7Devs")
@@ -29,8 +24,7 @@ module.exports = {
                 .setURL("https://k7devs.com")
                 .setFooter({
                     text: "K7Devs • Made by iik27"
-                })
-                .setTimestamp();
+                });
 
             const button = new ActionRowBuilder()
                 .addComponents(
@@ -52,33 +46,24 @@ module.exports = {
 
         } catch (error) {
             console.error(
-                "❌ /business failed:"
+                "❌ /business failed:",
+                error
             );
 
-            console.error(error);
-
-            try {
-                if (
-                    interaction.deferred ||
-                    interaction.replied
-                ) {
-                    await interaction.editReply({
-                        content:
-                            "❌ Business command failed."
-                    });
-                } else {
-                    await interaction.reply({
-                        content:
-                            "❌ Business command failed.",
-                        ephemeral: true
-                    });
-                }
-            } catch (replyError) {
-                console.error(
-                    "❌ Failed to send /business error response:"
-                );
-
-                console.error(replyError);
+            if (
+                interaction.deferred ||
+                interaction.replied
+            ) {
+                await interaction.editReply({
+                    content:
+                        "❌ Business command failed."
+                }).catch(console.error);
+            } else {
+                await interaction.reply({
+                    content:
+                        "❌ Business command failed.",
+                    ephemeral: true
+                }).catch(console.error);
             }
         }
     }
