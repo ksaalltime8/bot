@@ -1,3 +1,4 @@
+```js
 const {
     SlashCommandBuilder,
     EmbedBuilder,
@@ -12,6 +13,10 @@ module.exports = {
         .setDescription("Visit the K7Devs business website"),
 
     async execute(interaction) {
+        // Acknowledge Discord immediately.
+        // This prevents "This application did not respond".
+        await interaction.deferReply();
+
         try {
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
@@ -33,7 +38,7 @@ module.exports = {
                         .setStyle(ButtonStyle.Link)
                 );
 
-            await interaction.reply({
+            await interaction.editReply({
                 embeds: [embed],
                 components: [button]
             });
@@ -43,7 +48,11 @@ module.exports = {
         } catch (error) {
             console.error("❌ /business failed:", error);
 
-            if (!interaction.replied && !interaction.deferred) {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    content: "❌ Business command failed."
+                }).catch(console.error);
+            } else {
                 await interaction.reply({
                     content: "❌ Business command failed.",
                     ephemeral: true
@@ -52,3 +61,4 @@ module.exports = {
         }
     }
 };
+```
