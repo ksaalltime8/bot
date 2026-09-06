@@ -619,7 +619,7 @@ async function handleActivityTest(
                     {
 
                         name:
-                            "/livecheck",
+                            "/livecheck, /business",
 
                         type:
                             ActivityType.Watching
@@ -641,7 +641,7 @@ async function handleActivityTest(
 
                 "👀 **Watching activity enabled!**\n\n" +
 
-                "Activity: **/livecheck**"
+                "Activity: **/livecheck,/livecheck**"
 
             );
 
