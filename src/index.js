@@ -36,7 +36,6 @@ const {
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-
 const PORT = process.env.PORT || 5000;
 
 // ==========================================
@@ -100,7 +99,6 @@ server.listen(
     PORT,
     "0.0.0.0",
     () => {
-
         console.log(
             `🌐 Web server listening on ${PORT}`
         );
@@ -118,7 +116,7 @@ const client = new Client({
 });
 
 // ==========================================
-// /LIVE COMMAND
+// /LIVE
 // ==========================================
 
 const liveCommand =
@@ -219,7 +217,7 @@ const autoModCommand =
         );
 
 // ==========================================
-// BUSINESS COMMAND
+// BUSINESS
 // ==========================================
 
 let businessCommand = null;
@@ -331,40 +329,10 @@ async function registerCommands() {
 }
 
 // ==========================================
-// AUT0MOD CONFIG
+// AUTOMOD
 // ==========================================
 
 const AUTOMOD_PREFIX = "K7Devs |";
-
-// ==========================================
-// CHECK TARGET SERVER
-// ==========================================
-
-function isTargetGuild(guildId) {
-
-    return guildId === GUILD_ID;
-}
-
-// ==========================================
-// GET BOT MEMBER
-// ==========================================
-
-async function getBotMember(guild) {
-
-    try {
-
-        return await guild.members.fetchMe();
-
-    } catch (error) {
-
-        console.error(
-            "❌ Could not fetch bot member:",
-            error.message
-        );
-
-        return null;
-    }
-}
 
 // ==========================================
 // GET AUTOMOD RULES
@@ -379,92 +347,50 @@ async function getAutoModRules(guild) {
     } catch (error) {
 
         console.error(
-            "❌ Could not fetch AutoMod rules:",
-            error.message
+            "❌ Could not fetch AutoMod rules:"
         );
-
-        return null;
-    }
-}
-
-// ==========================================
-// CREATE AUTOMOD RULE
-// ==========================================
-
-async function createAutoModRule(
-    guild,
-    data
-) {
-
-    try {
-
-        const rules =
-            await getAutoModRules(guild);
-
-        if (!rules) {
-            return null;
-        }
-
-        const existing =
-            rules.find(
-                rule =>
-                    rule.name === data.name
-            );
-
-        if (existing) {
-
-            console.log(
-                `↪️ Already exists: ${data.name}`
-            );
-
-            return existing;
-        }
-
-        const rule =
-            await guild.autoModerationRules.create(
-                data
-            );
-
-        console.log(
-            `✅ Created: ${data.name}`
-        );
-
-        return rule;
-
-    } catch (error) {
 
         console.error(
-            `❌ Failed to create ${data.name}:`,
             error.message
         );
+
+        if (error.code) {
+            console.error(
+                `Discord error code: ${error.code}`
+            );
+        }
 
         return null;
     }
 }
 
 // ==========================================
-// AUTOMOD SETUP
+// SETUP AUTOMOD
 // ==========================================
 
 async function setupAutoMod(guild) {
 
     if (!guild) {
+
         return {
             success: false,
-            message: "Guild not found."
+            message: "Guild not found.",
+            created: 0,
+            rules: [],
+            ruleCount: 0
         };
     }
 
-    // ======================================
-    // LOCK TO GUILD_ID
-    // ======================================
-
-    if (!isTargetGuild(guild.id)) {
+    // Only configured server
+    if (guild.id !== GUILD_ID) {
 
         return {
             success: false,
             message:
-                "AutoMod is only configured for the bot's configured GUILD_ID."
+                "AutoMod is only configured for the server in GUILD_ID.",
+            created: 0,
+            rules: [],
+            ruleCount: 0
         };
     }
 
@@ -483,21 +409,41 @@ async function setupAutoMod(guild) {
         `🏠 Server: ${guild.name}`
     );
 
+    console.log(
+        `🆔 Guild ID: ${guild.id}`
+    );
+
     // ======================================
-    // BOT PERMISSION
+    // BOT MEMBER
     // ======================================
 
-    const me =
-        await getBotMember(guild);
+    let me;
 
-    if (!me) {
+    try {
+
+        me =
+            await guild.members.fetchMe();
+
+    } catch (error) {
+
+        console.error(
+            "❌ Could not fetch bot member:",
+            error.message
+        );
 
         return {
             success: false,
             message:
-                "Could not find the bot member."
+                "Could not find the bot member.",
+            created: 0,
+            rules: [],
+            ruleCount: 0
         };
     }
+
+    // ======================================
+    // PERMISSION
+    // ======================================
 
     if (
         !me.permissions.has(
@@ -508,12 +454,15 @@ async function setupAutoMod(guild) {
         return {
             success: false,
             message:
-                "I need the **Manage Server** permission."
+                "I need the **Manage Server** permission.",
+            created: 0,
+            rules: [],
+            ruleCount: 0
         };
     }
 
     // ======================================
-    // EXISTING RULES
+    // INITIAL RULE FETCH
     // ======================================
 
     let rules =
@@ -524,7 +473,10 @@ async function setupAutoMod(guild) {
         return {
             success: false,
             message:
-                "Could not access Discord AutoMod."
+                "Discord did not allow me to access AutoMod rules.",
+            created: 0,
+            rules: [],
+            ruleCount: 0
         };
     }
 
@@ -535,256 +487,240 @@ async function setupAutoMod(guild) {
     let created = 0;
 
     // ======================================
-    // 1. SPAM PROTECTION
+    // CREATE HELPER
     // ======================================
 
-    const spamExists =
-        rules.some(
-            rule =>
-                rule.name ===
-                `${AUTOMOD_PREFIX} Spam Protection`
-        );
+    async function createRuleIfMissing(
+        name,
+        data
+    ) {
 
-    if (!spamExists) {
+        // Refresh rules
+        rules =
+            await getAutoModRules(guild);
 
-        const rule =
-            await createAutoModRule(
-                guild,
-                {
-                    name:
-                        `${AUTOMOD_PREFIX} Spam Protection`,
+        if (!rules) {
+            return null;
+        }
 
-                    eventType:
-                        AutoModerationRuleEventType.MessageSend,
-
-                    triggerType:
-                        AutoModerationRuleTriggerType.Spam,
-
-                    actions: [
-                        {
-                            type:
-                                AutoModerationActionType.BlockMessage
-                        }
-                    ],
-
-                    enabled: true,
-
-                    reason:
-                        "K7Devs AutoMod setup"
-                }
+        const existing =
+            rules.find(
+                rule =>
+                    rule.name === name
             );
 
-        if (rule) {
+        if (existing) {
+
+            console.log(
+                `↪️ Already exists: ${name}`
+            );
+
+            return existing;
+        }
+
+        try {
+
+            const newRule =
+                await guild.autoModerationRules.create(
+                    {
+                        ...data,
+                        name: name
+                    }
+                );
+
             created++;
+
+            console.log(
+                `✅ Created: ${name}`
+            );
+
+            return newRule;
+
+        } catch (error) {
+
+            console.error("");
+            console.error(
+                `❌ Failed to create: ${name}`
+            );
+
+            console.error(
+                `Message: ${error.message}`
+            );
+
+            if (error.code) {
+
+                console.error(
+                    `Discord error code: ${error.code}`
+                );
+            }
+
+            return null;
         }
     }
 
     // ======================================
-    // REFRESH
+    // 1. SPAM
     // ======================================
 
-    rules =
-        await getAutoModRules(guild);
+    await createRuleIfMissing(
+        `${AUTOMOD_PREFIX} Spam Protection`,
+        {
+            eventType:
+                AutoModerationRuleEventType.MessageSend,
+
+            triggerType:
+                AutoModerationRuleTriggerType.Spam,
+
+            actions: [
+                {
+                    type:
+                        AutoModerationActionType.BlockMessage
+                }
+            ],
+
+            enabled: true,
+
+            reason:
+                "K7Devs AutoMod setup"
+        }
+    );
 
     // ======================================
     // 2. MENTION SPAM
     // ======================================
 
-    if (rules) {
+    await createRuleIfMissing(
+        `${AUTOMOD_PREFIX} Mention Protection`,
+        {
+            eventType:
+                AutoModerationRuleEventType.MessageSend,
 
-        const mentionExists =
-            rules.some(
-                rule =>
-                    rule.name ===
-                    `${AUTOMOD_PREFIX} Mention Protection`
-            );
+            triggerType:
+                AutoModerationRuleTriggerType.MentionSpam,
 
-        if (!mentionExists) {
+            triggerMetadata: {
+                mentionTotalLimit: 5
+            },
 
-            const rule =
-                await createAutoModRule(
-                    guild,
-                    {
-                        name:
-                            `${AUTOMOD_PREFIX} Mention Protection`,
+            actions: [
+                {
+                    type:
+                        AutoModerationActionType.BlockMessage
+                }
+            ],
 
-                        eventType:
-                            AutoModerationRuleEventType.MessageSend,
+            enabled: true,
 
-                        triggerType:
-                            AutoModerationRuleTriggerType.MentionSpam,
-
-                        triggerMetadata: {
-                            mentionTotalLimit: 5
-                        },
-
-                        actions: [
-                            {
-                                type:
-                                    AutoModerationActionType.BlockMessage
-                            }
-                        ],
-
-                        enabled: true,
-
-                        reason:
-                            "K7Devs AutoMod setup"
-                    }
-                );
-
-            if (rule) {
-                created++;
-            }
+            reason:
+                "K7Devs AutoMod setup"
         }
-    }
-
-    // ======================================
-    // REFRESH
-    // ======================================
-
-    rules =
-        await getAutoModRules(guild);
+    );
 
     // ======================================
     // 3. PROFANITY
     // ======================================
 
-    if (rules) {
+    await createRuleIfMissing(
+        `${AUTOMOD_PREFIX} Profanity Filter`,
+        {
+            eventType:
+                AutoModerationRuleEventType.MessageSend,
 
-        const profanityExists =
-            rules.some(
-                rule =>
-                    rule.name ===
-                    `${AUTOMOD_PREFIX} Profanity Filter`
-            );
+            triggerType:
+                AutoModerationRuleTriggerType.KeywordPreset,
 
-        if (!profanityExists) {
+            triggerMetadata: {
+                presets: [
+                    AutoModerationRuleKeywordPresetType.Profanity
+                ]
+            },
 
-            const rule =
-                await createAutoModRule(
-                    guild,
-                    {
-                        name:
-                            `${AUTOMOD_PREFIX} Profanity Filter`,
+            actions: [
+                {
+                    type:
+                        AutoModerationActionType.BlockMessage
+                }
+            ],
 
-                        eventType:
-                            AutoModerationRuleEventType.MessageSend,
+            enabled: true,
 
-                        triggerType:
-                            AutoModerationRuleTriggerType.KeywordPreset,
-
-                        triggerMetadata: {
-                            presets: [
-                                AutoModerationRuleKeywordPresetType.Profanity
-                            ]
-                        },
-
-                        actions: [
-                            {
-                                type:
-                                    AutoModerationActionType.BlockMessage
-                            }
-                        ],
-
-                        enabled: true,
-
-                        reason:
-                            "K7Devs AutoMod setup"
-                    }
-                );
-
-            if (rule) {
-                created++;
-            }
+            reason:
+                "K7Devs AutoMod setup"
         }
-    }
+    );
 
     // ======================================
-    // REFRESH
+    // 4. SCAM PROTECTION
+    // ======================================
+
+    await createRuleIfMissing(
+        `${AUTOMOD_PREFIX} Scam Protection`,
+        {
+            eventType:
+                AutoModerationRuleEventType.MessageSend,
+
+            triggerType:
+                AutoModerationRuleTriggerType.Keyword,
+
+            triggerMetadata: {
+                keywordFilter: [
+                    "free nitro",
+                    "discord nitro free",
+                    "claim your nitro",
+                    "steam gift",
+                    "free steam",
+                    "verify your account",
+                    "verify account",
+                    "login to claim",
+                    "gift card giveaway",
+                    "free gift card"
+                ]
+            },
+
+            actions: [
+                {
+                    type:
+                        AutoModerationActionType.BlockMessage
+                }
+            ],
+
+            enabled: true,
+
+            reason:
+                "K7Devs AutoMod setup"
+        }
+    );
+
+    // ======================================
+    // FINAL FETCH
     // ======================================
 
     rules =
         await getAutoModRules(guild);
 
-    // ======================================
-    // 4. SCAM / PHISHING WORDS
-    // ======================================
+    if (!rules) {
 
-    if (rules) {
-
-        const scamExists =
-            rules.some(
-                rule =>
-                    rule.name ===
-                    `${AUTOMOD_PREFIX} Scam Protection`
-            );
-
-        if (!scamExists) {
-
-            const rule =
-                await createAutoModRule(
-                    guild,
-                    {
-                        name:
-                            `${AUTOMOD_PREFIX} Scam Protection`,
-
-                        eventType:
-                            AutoModerationRuleEventType.MessageSend,
-
-                        triggerType:
-                            AutoModerationRuleTriggerType.Keyword,
-
-                        triggerMetadata: {
-                            keywordFilter: [
-                                "free nitro",
-                                "discord nitro free",
-                                "claim your nitro",
-                                "steam gift",
-                                "free steam",
-                                "verify your account",
-                                "verify account",
-                                "login to claim",
-                                "gift card giveaway",
-                                "free gift card"
-                            ]
-                        },
-
-                        actions: [
-                            {
-                                type:
-                                    AutoModerationActionType.BlockMessage
-                            }
-                        ],
-
-                        enabled: true,
-
-                        reason:
-                            "K7Devs AutoMod setup"
-                    }
-                );
-
-            if (rule) {
-                created++;
-            }
-        }
+        return {
+            success: false,
+            message:
+                "Rules were processed, but Discord did not return the final rule list.",
+            created,
+            rules: [],
+            ruleCount: 0
+        };
     }
 
     // ======================================
-    // FINAL STATUS
+    // ONLY OUR RULES
     // ======================================
-
-    rules =
-        await getAutoModRules(guild);
 
     const ownedRules =
-        rules
-            ? rules.filter(
-                rule =>
-                    rule.name.startsWith(
-                        AUTOMOD_PREFIX
-                    )
-            )
-            : [];
+        [...rules.values()].filter(
+            rule =>
+                rule.name.startsWith(
+                    AUTOMOD_PREFIX
+                )
+        );
 
     console.log("");
     console.log(
@@ -795,19 +731,29 @@ async function setupAutoMod(guild) {
         `➕ Created this setup: ${created}`
     );
 
+    for (
+        const rule of ownedRules
+    ) {
+
+        console.log(
+            `${rule.enabled ? "🟢" : "🔴"} ${rule.name}`
+        );
+    }
+
     console.log(
         "================================"
     );
 
     return {
         success: true,
-        created,
-        rules: ownedRules
+        created: created,
+        rules: ownedRules,
+        ruleCount: ownedRules.length
     };
 }
 
 // ==========================================
-// AUTOMOD DISABLE
+// DISABLE AUTOMOD
 // ==========================================
 
 async function disableAutoMod(guild) {
@@ -816,41 +762,18 @@ async function disableAutoMod(guild) {
 
         return {
             success: false,
-            message: "Guild not found."
+            message: "Guild not found.",
+            disabled: 0
         };
     }
 
-    if (!isTargetGuild(guild.id)) {
+    if (guild.id !== GUILD_ID) {
 
         return {
             success: false,
             message:
-                "AutoMod is only configured for the bot's configured GUILD_ID."
-        };
-    }
-
-    const me =
-        await getBotMember(guild);
-
-    if (!me) {
-
-        return {
-            success: false,
-            message:
-                "Could not find the bot member."
-        };
-    }
-
-    if (
-        !me.permissions.has(
-            PermissionFlagsBits.ManageGuild
-        )
-    ) {
-
-        return {
-            success: false,
-            message:
-                "I need the **Manage Server** permission."
+                "AutoMod is only configured for the server in GUILD_ID.",
+            disabled: 0
         };
     }
 
@@ -862,7 +785,8 @@ async function disableAutoMod(guild) {
         return {
             success: false,
             message:
-                "Could not access AutoMod."
+                "Could not access AutoMod.",
+            disabled: 0
         };
     }
 
@@ -916,24 +840,21 @@ async function disableAutoMod(guild) {
 async function getAutoModStatus(guild) {
 
     if (!guild) {
-
-        return null;
+        return [];
     }
 
-    if (!isTargetGuild(guild.id)) {
-
-        return null;
+    if (guild.id !== GUILD_ID) {
+        return [];
     }
 
     const rules =
         await getAutoModRules(guild);
 
     if (!rules) {
-
-        return null;
+        return [];
     }
 
-    return rules.filter(
+    return [...rules.values()].filter(
         rule =>
             rule.name.startsWith(
                 AUTOMOD_PREFIX
@@ -945,9 +866,7 @@ async function getAutoModStatus(guild) {
 // KICK API
 // ==========================================
 
-async function getKickChannel(
-    username
-) {
+async function getKickChannel(username) {
 
     try {
 
@@ -985,9 +904,7 @@ async function getKickChannel(
 // /LIVECHECK
 // ==========================================
 
-async function handleLiveCheck(
-    interaction
-) {
+async function handleLiveCheck(interaction) {
 
     await interaction.deferReply();
 
@@ -1098,10 +1015,7 @@ async function handleLiveCheck(
                 .setTimestamp();
 
         if (thumbnail) {
-
-            embed.setImage(
-                thumbnail
-            );
+            embed.setImage(thumbnail);
         }
 
         console.log(
@@ -1129,9 +1043,7 @@ async function handleLiveCheck(
 // /LIVE
 // ==========================================
 
-async function handleLive(
-    interaction
-) {
+async function handleLive(interaction) {
 
     await interaction.deferReply({
         ephemeral: true
@@ -1205,15 +1117,11 @@ async function handleLive(
 
             config.kickLive = {
                 enabled: true,
-
                 username:
                     username.toLowerCase(),
-
                 channelId:
                     channel.id,
-
-                lastLive:
-                    false
+                lastLive: false
             };
 
             await config.save();
@@ -1304,7 +1212,7 @@ client.on(
             "automod"
         ) {
 
-            // Only configured server
+            // LOCK TO YOUR SERVER
 
             if (
                 interaction.guildId !==
@@ -1348,7 +1256,7 @@ client.on(
                 return interaction.editReply(
                     `🛡️ **K7Devs AutoMod configured!**\n\n` +
                     `➕ New rules created: **${result.created}**\n` +
-                    `🛡️ Your K7Devs rules: **${result.rules.length}**\n\n` +
+                    `🛡️ Your K7Devs rules: **${result.ruleCount}**\n\n` +
                     `✅ Spam protection\n` +
                     `✅ Mention protection\n` +
                     `✅ Profanity filter\n` +
@@ -1403,14 +1311,7 @@ client.on(
                         interaction.guild
                     );
 
-                if (!rules) {
-
-                    return interaction.editReply(
-                        "❌ Could not read AutoMod status."
-                    );
-                }
-
-                if (rules.length === 0) {
+                if (!rules.length) {
 
                     return interaction.editReply(
                         "🛡️ **K7Devs AutoMod**\n\nNo K7Devs AutoMod rules have been configured."
@@ -1544,7 +1445,7 @@ client.once(
         );
 
         // ======================================
-        // STREAMING STATUS
+        // STREAMING
         // ======================================
 
         client.user.setPresence({
@@ -1576,7 +1477,7 @@ client.once(
         await registerCommands();
 
         // ======================================
-        // DO NOT AUTOMATICALLY MODIFY AUTOMOD
+        // AUTOMOD
         // ======================================
 
         console.log(
@@ -1663,7 +1564,6 @@ async function start() {
             setTimeout(() => {
 
                 console.error("");
-
                 console.error(
                     "❌ DISCORD LOGIN TIMEOUT"
                 );
@@ -1702,7 +1602,6 @@ async function start() {
     } catch (error) {
 
         console.error("");
-
         console.error(
             "================================"
         );
