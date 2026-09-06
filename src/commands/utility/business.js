@@ -24,8 +24,7 @@ module.exports = {
                 .setURL("https://k7devs.com")
                 .setFooter({
                     text: "K7Devs • Made by iik27"
-                })
-                .setTimestamp();
+                });
 
             const button = new ActionRowBuilder()
                 .addComponents(
@@ -36,10 +35,25 @@ module.exports = {
                         .setStyle(ButtonStyle.Link)
                 );
 
-            return await interaction.editReply({
+            const response = {
                 embeds: [embed],
                 components: [button]
-            });
+            };
+
+            // Already acknowledged by index.js
+            if (
+                interaction.deferred ||
+                interaction.replied
+            ) {
+                return await interaction.editReply(
+                    response
+                );
+            }
+
+            // Not acknowledged yet
+            return await interaction.reply(
+                response
+            );
 
         } catch (error) {
             console.error(
@@ -47,11 +61,30 @@ module.exports = {
                 error
             );
 
-            return interaction.editReply({
-                content: "❌ Business command failed.",
-                embeds: [],
-                components: []
-            }).catch(() => {});
+            try {
+                if (
+                    interaction.deferred ||
+                    interaction.replied
+                ) {
+                    await interaction.editReply({
+                        content:
+                            "❌ Business command failed.",
+                        embeds: [],
+                        components: []
+                    });
+                } else {
+                    await interaction.reply({
+                        content:
+                            "❌ Business command failed.",
+                        ephemeral: true
+                    });
+                }
+            } catch (replyError) {
+                console.error(
+                    "❌ Could not send error response:",
+                    replyError
+                );
+            }
         }
     }
 };
