@@ -11,7 +11,11 @@ const {
     PermissionFlagsBits,
     ChannelType,
     ActivityType,
-    EmbedBuilder
+    EmbedBuilder,
+    AutoModerationRuleTriggerType,
+    AutoModerationRuleEventType,
+    AutoModerationActionType,
+    AutoModerationRuleKeywordPresetType
 } = require("discord.js");
 
 const axios = require("axios");
@@ -295,6 +299,447 @@ async function registerCommands() {
 }
 
 // ==========================================
+// AUTOMOD
+// ==========================================
+
+async function setupAutoMod() {
+
+    console.log("");
+    console.log(
+        "================================"
+    );
+    console.log(
+        "       AUTOMOD SETUP"
+    );
+    console.log(
+        "================================"
+    );
+
+    let totalRules = 0;
+
+    console.log(
+        `🌐 Servers: ${client.guilds.cache.size}`
+    );
+
+    for (
+        const guild of client.guilds.cache.values()
+    ) {
+
+        try {
+
+            console.log("");
+            console.log(
+                `🛡️ Checking AutoMod: ${guild.name}`
+            );
+
+            // ==================================
+            // CHECK BOT PERMISSIONS
+            // ==================================
+
+            const me =
+                await guild.members.fetchMe();
+
+            if (
+                !me.permissions.has(
+                    PermissionFlagsBits.ManageGuild
+                )
+            ) {
+
+                console.log(
+                    `⚠️ ${guild.name}: Missing Manage Server permission.`
+                );
+
+                continue;
+            }
+
+            // ==================================
+            // FETCH EXISTING RULES
+            // ==================================
+
+            let rules =
+                await guild.autoModerationRules.fetch();
+
+            console.log(
+                `📊 Existing rules: ${rules.size}`
+            );
+
+            // ==================================
+            // KEYWORD RULES
+            // ==================================
+
+            const keywordRules = [
+                {
+                    name: "K7Devs Anti Scam Links",
+                    keywords: [
+                        "*free-nitro-scam-example*"
+                    ]
+                },
+                {
+                    name: "K7Devs Anti Phishing",
+                    keywords: [
+                        "*verify-account-example*"
+                    ]
+                },
+                {
+                    name: "K7Devs Anti Fake Giveaway",
+                    keywords: [
+                        "*fake-giveaway-example*"
+                    ]
+                },
+                {
+                    name: "K7Devs Anti Malicious Links",
+                    keywords: [
+                        "*malicious-link-example*"
+                    ]
+                },
+                {
+                    name: "K7Devs Anti Fake Staff",
+                    keywords: [
+                        "*fake-staff-example*"
+                    ]
+                },
+                {
+                    name: "K7Devs Anti Scam Messages",
+                    keywords: [
+                        "*scam-message-example*"
+                    ]
+                }
+            ];
+
+            let keywordCount =
+                rules.filter(
+                    rule =>
+                        rule.triggerType ===
+                        AutoModerationRuleTriggerType.Keyword
+                ).size;
+
+            for (
+                const ruleData of keywordRules
+            ) {
+
+                if (rules.size >= 10) {
+                    break;
+                }
+
+                if (keywordCount >= 6) {
+                    break;
+                }
+
+                const alreadyExists =
+                    rules.some(
+                        rule =>
+                            rule.name ===
+                            ruleData.name
+                    );
+
+                if (alreadyExists) {
+                    continue;
+                }
+
+                try {
+
+                    await guild.autoModerationRules.create({
+
+                        name:
+                            ruleData.name,
+
+                        eventType:
+                            AutoModerationRuleEventType.MessageSend,
+
+                        triggerType:
+                            AutoModerationRuleTriggerType.Keyword,
+
+                        triggerMetadata: {
+                            keywordFilter:
+                                ruleData.keywords
+                        },
+
+                        actions: [
+                            {
+                                type:
+                                    AutoModerationActionType.BlockMessage
+                            }
+                        ],
+
+                        enabled: false,
+
+                        reason:
+                            "K7Devs AutoMod setup"
+                    });
+
+                    keywordCount++;
+
+                    console.log(
+                        `✅ Created keyword rule: ${ruleData.name}`
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        `❌ Failed to create ${ruleData.name}:`,
+                        error.message
+                    );
+                }
+            }
+
+            // ==================================
+            // REFRESH
+            // ==================================
+
+            rules =
+                await guild.autoModerationRules.fetch();
+
+            // ==================================
+            // SPAM RULE
+            // ==================================
+
+            const hasSpamRule =
+                rules.some(
+                    rule =>
+                        rule.triggerType ===
+                        AutoModerationRuleTriggerType.Spam
+                );
+
+            if (
+                rules.size < 10 &&
+                !hasSpamRule
+            ) {
+
+                try {
+
+                    await guild.autoModerationRules.create({
+
+                        name:
+                            "K7Devs Anti Spam",
+
+                        eventType:
+                            AutoModerationRuleEventType.MessageSend,
+
+                        triggerType:
+                            AutoModerationRuleTriggerType.Spam,
+
+                        actions: [
+                            {
+                                type:
+                                    AutoModerationActionType.BlockMessage
+                            }
+                        ],
+
+                        enabled: false,
+
+                        reason:
+                            "K7Devs AutoMod setup"
+                    });
+
+                    console.log(
+                        "✅ Created Anti Spam rule"
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "❌ Failed to create Anti Spam:",
+                        error.message
+                    );
+                }
+            }
+
+            // ==================================
+            // REFRESH
+            // ==================================
+
+            rules =
+                await guild.autoModerationRules.fetch();
+
+            // ==================================
+            // KEYWORD PRESET
+            // ==================================
+
+            const hasPresetRule =
+                rules.some(
+                    rule =>
+                        rule.triggerType ===
+                        AutoModerationRuleTriggerType.KeywordPreset
+                );
+
+            if (
+                rules.size < 10 &&
+                !hasPresetRule
+            ) {
+
+                try {
+
+                    await guild.autoModerationRules.create({
+
+                        name:
+                            "K7Devs Content Filter",
+
+                        eventType:
+                            AutoModerationRuleEventType.MessageSend,
+
+                        triggerType:
+                            AutoModerationRuleTriggerType.KeywordPreset,
+
+                        triggerMetadata: {
+                            presets: [
+                                AutoModerationRuleKeywordPresetType.Profanity
+                            ]
+                        },
+
+                        actions: [
+                            {
+                                type:
+                                    AutoModerationActionType.BlockMessage
+                            }
+                        ],
+
+                        enabled: false,
+
+                        reason:
+                            "K7Devs AutoMod setup"
+                    });
+
+                    console.log(
+                        "✅ Created Content Filter rule"
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "❌ Failed to create Content Filter:",
+                        error.message
+                    );
+                }
+            }
+
+            // ==================================
+            // REFRESH
+            // ==================================
+
+            rules =
+                await guild.autoModerationRules.fetch();
+
+            // ==================================
+            // MENTION SPAM
+            // ==================================
+
+            const hasMentionRule =
+                rules.some(
+                    rule =>
+                        rule.triggerType ===
+                        AutoModerationRuleTriggerType.MentionSpam
+                );
+
+            if (
+                rules.size < 10 &&
+                !hasMentionRule
+            ) {
+
+                try {
+
+                    await guild.autoModerationRules.create({
+
+                        name:
+                            "K7Devs Anti Mention Spam",
+
+                        eventType:
+                            AutoModerationRuleEventType.MessageSend,
+
+                        triggerType:
+                            AutoModerationRuleTriggerType.MentionSpam,
+
+                        triggerMetadata: {
+                            mentionTotalLimit: 5
+                        },
+
+                        actions: [
+                            {
+                                type:
+                                    AutoModerationActionType.BlockMessage
+                            }
+                        ],
+
+                        enabled: false,
+
+                        reason:
+                            "K7Devs AutoMod setup"
+                    });
+
+                    console.log(
+                        "✅ Created Anti Mention Spam rule"
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "❌ Failed to create Mention Spam:",
+                        error.message
+                    );
+                }
+            }
+
+            // ==================================
+            // FINAL COUNT
+            // ==================================
+
+            rules =
+                await guild.autoModerationRules.fetch();
+
+            totalRules += rules.size;
+
+            console.log(
+                `📊 ${guild.name}: ${rules.size} AutoMod rule(s)`
+            );
+
+        } catch (error) {
+
+            console.error(
+                `❌ AutoMod error in ${guild.name}:`,
+                error
+            );
+        }
+    }
+
+    // ==========================================
+    // TOTAL
+    // ==========================================
+
+    console.log("");
+    console.log(
+        "================================"
+    );
+
+    console.log(
+        `🛡️ TOTAL AUTMOD RULES: ${totalRules}`
+    );
+
+    console.log(
+        `🎯 TARGET: 100`
+    );
+
+    if (totalRules >= 100) {
+
+        console.log(
+            "🎉 100 AutoMod rules reached!"
+        );
+
+        console.log(
+            "🔵 Discord should award the Uses AutoMod badge."
+        );
+
+    } else {
+
+        console.log(
+            `⏳ ${100 - totalRules} more rule(s) needed.`
+        );
+    }
+
+    console.log(
+        "================================"
+    );
+}
+
+// ==========================================
 // KICK API
 // ==========================================
 
@@ -486,7 +931,6 @@ async function handleLive(
     interaction
 ) {
 
-    // MUST happen immediately
     await interaction.deferReply({
         ephemeral: true
     });
@@ -771,6 +1215,12 @@ client.once(
         await registerCommands();
 
         // ======================================
+        // AUTOMOD
+        // ======================================
+
+        await setupAutoMod();
+
+        // ======================================
         // KICK CHECKER
         // ======================================
 
@@ -857,9 +1307,11 @@ async function start() {
                 console.error(
                     "❌ DISCORD LOGIN TIMEOUT"
                 );
+
                 console.error(
                     "Discord did not complete the connection within 30 seconds."
                 );
+
                 console.error(
                     "Check your DISCORD_TOKEN and Hostinger network configuration."
                 );
