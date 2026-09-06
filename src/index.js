@@ -486,7 +486,6 @@ async function handleLive(
     interaction
 ) {
 
-    // MUST happen immediately
     await interaction.deferReply({
         ephemeral: true
     });
@@ -747,7 +746,7 @@ client.once(
             activities: [
                 {
                     name:
-                        "Made by iik27",
+                        "/livecheck, /business",
 
                     type:
                         ActivityType.Streaming,
@@ -836,7 +835,19 @@ async function start() {
             "🍃 Connecting to MongoDB..."
         );
 
-        await connectDatabase();
+        await Promise.race([
+            connectDatabase(),
+
+            new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(
+                        new Error(
+                            "MongoDB connection timed out after 15 seconds."
+                        )
+                    );
+                }, 15000);
+            })
+        ]);
 
         console.log(
             "✅ MongoDB connected!"
@@ -845,10 +856,6 @@ async function start() {
         console.log(
             "🔐 Connecting to Discord..."
         );
-
-        // ======================================
-        // LOGIN TIMEOUT
-        // ======================================
 
         const loginTimeout =
             setTimeout(() => {
@@ -876,6 +883,10 @@ async function start() {
 
             clearTimeout(
                 loginTimeout
+            );
+
+            console.log(
+                "✅ Discord login successful!"
             );
 
         } catch (error) {
@@ -907,6 +918,32 @@ async function start() {
         process.exit(1);
     }
 }
+
+// ==========================================
+// PROCESS ERRORS
+// ==========================================
+
+process.on(
+    "unhandledRejection",
+    error => {
+
+        console.error(
+            "❌ Unhandled rejection:",
+            error
+        );
+    }
+);
+
+process.on(
+    "uncaughtException",
+    error => {
+
+        console.error(
+            "❌ Uncaught exception:",
+            error
+        );
+    }
+);
 
 // ==========================================
 // START
