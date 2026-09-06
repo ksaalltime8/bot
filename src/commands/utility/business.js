@@ -9,11 +9,11 @@ const {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("business")
-        .setDescription("Visit the K7Devs business website"),
+        .setDescription(
+            "Visit the K7Devs business website"
+        ),
 
     async execute(interaction) {
-        await interaction.deferReply();
-
         try {
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
@@ -24,7 +24,8 @@ module.exports = {
                 .setURL("https://k7devs.com")
                 .setFooter({
                     text: "K7Devs • Made by iik27"
-                });
+                })
+                .setTimestamp();
 
             const button = new ActionRowBuilder()
                 .addComponents(
@@ -35,14 +36,10 @@ module.exports = {
                         .setStyle(ButtonStyle.Link)
                 );
 
-            await interaction.editReply({
+            return await interaction.editReply({
                 embeds: [embed],
                 components: [button]
             });
-
-            console.log(
-                "✅ /business responded successfully."
-            );
 
         } catch (error) {
             console.error(
@@ -50,21 +47,11 @@ module.exports = {
                 error
             );
 
-            if (
-                interaction.deferred ||
-                interaction.replied
-            ) {
-                await interaction.editReply({
-                    content:
-                        "❌ Business command failed."
-                }).catch(console.error);
-            } else {
-                await interaction.reply({
-                    content:
-                        "❌ Business command failed.",
-                    ephemeral: true
-                }).catch(console.error);
-            }
+            return interaction.editReply({
+                content: "❌ Business command failed.",
+                embeds: [],
+                components: []
+            }).catch(() => {});
         }
     }
 };
