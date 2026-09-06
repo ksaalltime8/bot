@@ -88,7 +88,7 @@ const server = http.createServer((req, res) => {
     });
 
     res.end(
-        "K7Devs Discord bot is online!"
+        "Discord bot is online!"
     );
 });
 
@@ -354,7 +354,6 @@ async function getKickChannel(username) {
 async function handleLiveCheck(
     interaction
 ) {
-    // Acknowledge immediately.
     try {
         await interaction.deferReply();
 
@@ -420,7 +419,7 @@ async function handleLiveCheck(
 
                     .setFooter({
                         text:
-                            "K7Devs • KICK Live Check"
+                            "KICK Live Check"
                     })
 
                     .setTimestamp();
@@ -504,7 +503,7 @@ async function handleLiveCheck(
 
                 .setFooter({
                     text:
-                        "K7Devs • KICK Live Check"
+                        "KICK Live Check"
                 })
 
                 .setTimestamp();
@@ -541,7 +540,6 @@ async function handleLiveCheck(
 async function handleLive(
     interaction
 ) {
-    // Acknowledge immediately.
     try {
         await interaction.deferReply({
             ephemeral: true
@@ -718,7 +716,6 @@ async function handleLive(
 client.on(
     "interactionCreate",
     async interaction => {
-        // Ignore non-slash-command interactions.
         if (
             !interaction.isChatInputCommand()
         ) {
@@ -858,7 +855,7 @@ client.once(
                 activities: [
                     {
                         name:
-                            "Made by iik27",
+                            "Live on KICK",
 
                         type:
                             ActivityType.Streaming,
@@ -969,7 +966,7 @@ process.on(
 );
 
 // ==========================================
-// LOGIN / STARTUP
+// LOGIN
 // ==========================================
 
 async function start() {
