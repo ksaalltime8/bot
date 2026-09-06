@@ -1,46 +1,122 @@
 require("dotenv").config();
 
-const express = require("express");
+const http = require("http");
 
 const {
     Client,
     GatewayIntentBits,
-    ActivityType,
     REST,
-    Routes
+    Routes,
+    SlashCommandBuilder,
+    PermissionFlagsBits,
+    ChannelType,
+    ActivityType,
+    EmbedBuilder
 } = require("discord.js");
 
-const { connectDatabase } = require("./database/mongodb");
-const { startKickChecker } = require("./services/kickChecker");
+const axios = require("axios");
 
-// ======================================================
-// ENVIRONMENT
-// ======================================================
+const {
+    connectDatabase,
+    getGuildConfig
+} = require("./database/mongodb");
 
-console.log("🔎 Checking environment...");
+const {
+    startKickChecker
+} = require("./services/kickChecker");
+
+// ==========================================
+// ENV
+// ==========================================
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
+
 const PORT = process.env.PORT || 5000;
 
-console.log(TOKEN ? "🔐 Token: FOUND" : "❌ Token: MISSING");
-console.log(CLIENT_ID ? "🆔 Client ID: FOUND" : "❌ Client ID: MISSING");
-console.log(GUILD_ID ? "🏠 Guild ID: FOUND" : "❌ Guild ID: MISSING");
+// ==========================================
+// ENV CHECK
+// ==========================================
+
+console.log("🔎 Checking environment...");
+
 console.log(
-    process.env.MONGODB_URI
-        ? "🍃 MongoDB: FOUND"
-        : "❌ MongoDB: MISSING"
+    `🔐 Token: ${TOKEN ? "FOUND" : "MISSING"}`
 );
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID || !process.env.MONGODB_URI) {
-    console.error("❌ Missing required environment variables.");
-    process.exit(1);
+console.log(
+    `🆔 Client ID: ${CLIENT_ID ? "FOUND" : "MISSING"}`
+);
+
+console.log(
+    `🏠 Guild ID: ${GUILD_ID ? "FOUND" : "MISSING"}`
+);
+
+console.log(
+    `🍃 MongoDB: ${
+        process.env.MONGODB_URI
+            ? "FOUND"
+            : "MISSING"
+    }`
+);
+
+if (!TOKEN) {
+    throw new Error(
+        "DISCORD_TOKEN is missing."
+    );
 }
 
-// ======================================================
+if (!CLIENT_ID) {
+    throw new Error(
+        "CLIENT_ID is missing."
+    );
+}
+
+if (!GUILD_ID) {
+    throw new Error(
+        "GUILD_ID is missing."
+    );
+}
+
+if (!process.env.MONGODB_URI) {
+    throw new Error(
+        "MONGODB_URI is missing."
+    );
+}
+
+// ==========================================
+// WEB SERVER
+// ==========================================
+
+const server = http.createServer(
+    (req, res) => {
+
+        res.writeHead(200, {
+            "Content-Type":
+                "text/plain"
+        });
+
+        res.end(
+            "K7Devs Discord bot is online!"
+        );
+    }
+);
+
+server.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+
+        console.log(
+            `🌐 Web server listening on ${PORT}`
+        );
+    }
+);
+
+// ==========================================
 // DISCORD CLIENT
-// ======================================================
+// ==========================================
 
 const client = new Client({
     intents: [
@@ -48,329 +124,782 @@ const client = new Client({
     ]
 });
 
-// ======================================================
+// ==========================================
 // COMMANDS
-// ======================================================
+// ==========================================
 
-const businessCommand = require("./commands/utility/business");
+const liveCommand =
+    new SlashCommandBuilder()
+        .setName("live")
+        .setDescription(
+            "Manage KICK live alerts"
+        )
+        .setDefaultMemberPermissions(
+            PermissionFlagsBits.ManageGuild
+        )
 
-const commands = [
-    businessCommand.data.toJSON(),
+        .addSubcommand(sub =>
+            sub
+                .setName("setup")
+                .setDescription(
+                    "Set up KICK live alerts"
+                )
 
-    {
-        name: "livecheck",
-        description: "Check if iik27 is currently live on KICK"
-    },
+                .addStringOption(option =>
+                    option
+                        .setName("link")
+                        .setDescription(
+                            "KICK channel link"
+                        )
+                        .setRequired(true)
+                )
 
-    {
-        name: "live",
-        description: "Configure KICK live notifications"
-    }
-];
+                .addChannelOption(option =>
+                    option
+                        .setName("channel")
+                        .setDescription(
+                            "Discord alert channel"
+                        )
+                        .addChannelTypes(
+                            ChannelType.GuildText,
+                            ChannelType.GuildAnnouncement
+                        )
+                        .setRequired(true)
+                )
+        )
 
-console.log("📦 Commands loaded:", commands.length);
+        .addSubcommand(sub =>
+            sub
+                .setName("disable")
+                .setDescription(
+                    "Disable KICK live alerts"
+                )
+        );
 
-// ======================================================
-// EXPRESS SERVER
-// ======================================================
+const liveCheckCommand =
+    new SlashCommandBuilder()
+        .setName("livecheck")
+        .setDescription(
+            "Check if iik27 is live on KICK"
+        );
 
-const app = express();
+// ==========================================
+// BUSINESS COMMAND
+// ==========================================
 
-app.get("/", (req, res) => {
-    res.status(200).send("K7Devs Discord Bot is running.");
-});
+let businessCommand = null;
 
-app.get("/health", (req, res) => {
-    res.status(200).json({
-        status: "online",
-        discord: client.isReady(),
-        user: client.user
-            ? {
-                  id: client.user.id,
-                  username: client.user.username
-              }
-            : null
-    });
-});
+try {
 
-app.listen(PORT, () => {
-    console.log(`🌐 Web server listening on ${PORT}`);
-});
+    businessCommand =
+        require(
+            "./commands/utility/business"
+        );
 
-// ======================================================
-// DISCORD COMMAND REGISTRATION
-// ======================================================
-
-async function registerCommands() {
-    console.log("📡 Registering slash commands...");
-
-    const rest = new REST({
-        version: "10"
-    }).setToken(TOKEN);
-
-    await rest.put(
-        Routes.applicationGuildCommands(
-            CLIENT_ID,
-            GUILD_ID
-        ),
-        {
-            body: commands
-        }
+    console.log(
+        "✅ /business loaded"
     );
 
-    console.log("✅ Slash commands registered.");
+} catch (error) {
+
+    console.log(
+        "⚠️ /business could not be loaded."
+    );
+
+    console.error(error);
 }
 
-// ======================================================
-// INTERACTION HANDLER
-// ======================================================
+// ==========================================
+// COMMAND ARRAY
+// ==========================================
 
-client.on("interactionCreate", async (interaction) => {
+const commands = [
+    liveCommand.toJSON(),
+    liveCheckCommand.toJSON()
+];
+
+if (
+    businessCommand &&
+    businessCommand.data
+) {
+
+    commands.push(
+        businessCommand.data.toJSON()
+    );
+}
+
+console.log(
+    `📦 ${commands.length} commands ready`
+);
+
+for (const command of commands) {
+
+    console.log(
+        `📋 /${command.name}`
+    );
+}
+
+// ==========================================
+// REGISTER COMMANDS
+// ==========================================
+
+async function registerCommands() {
+
+    console.log(
+        "📋 Registering Discord commands..."
+    );
+
+    const rest = new REST({
+        version: "10",
+        timeout: 10000
+    }).setToken(TOKEN);
+
     try {
-        if (!interaction.isChatInputCommand()) {
+
+        const result =
+            await rest.put(
+                Routes.applicationGuildCommands(
+                    CLIENT_ID,
+                    GUILD_ID
+                ),
+                {
+                    body: commands
+                }
+            );
+
+        console.log(
+            "✅ Discord commands registered!"
+        );
+
+        console.log(
+            `📦 ${result.length} command(s)`
+        );
+
+        for (
+            const command of result
+        ) {
+
+            console.log(
+                `✅ /${command.name}`
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "❌ Command registration failed:"
+        );
+
+        console.error(error);
+    }
+}
+
+// ==========================================
+// KICK API
+// ==========================================
+
+async function getKickChannel(
+    username
+) {
+
+    try {
+
+        const response =
+            await axios.get(
+                `https://kick.com/api/v2/channels/${encodeURIComponent(username)}`,
+                {
+                    headers: {
+                        Accept:
+                            "application/json",
+
+                        "User-Agent":
+                            "Mozilla/5.0 DiscordBot"
+                    },
+
+                    timeout: 10000
+                }
+            );
+
+        return response.data;
+
+    } catch (error) {
+
+        console.error(
+            "❌ KICK API error:",
+            error.response?.status ||
+            error.message
+        );
+
+        return null;
+    }
+}
+
+// ==========================================
+// /LIVECHECK
+// ==========================================
+
+async function handleLiveCheck(
+    interaction
+) {
+
+    await interaction.deferReply();
+
+    const username = "iik27";
+
+    try {
+
+        console.log(
+            `📺 Checking ${username}...`
+        );
+
+        const data =
+            await getKickChannel(
+                username
+            );
+
+        if (!data) {
+
+            return interaction.editReply(
+                "❌ KICK could not be reached right now."
+            );
+        }
+
+        const isLive =
+            data.livestream != null;
+
+        if (!isLive) {
+
+            console.log(
+                `⚫ ${username} is offline.`
+            );
+
+            return interaction.editReply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor(0x2b2d31)
+                        .setTitle(
+                            "⚫ KICK Live Check"
+                        )
+                        .setDescription(
+                            `**${username} is not live right now.**`
+                        )
+                        .setURL(
+                            `https://kick.com/${username}`
+                        )
+                        .setTimestamp()
+                ]
+            });
+        }
+
+        const stream =
+            data.livestream;
+
+        const title =
+            stream.session_title ||
+            stream.stream_title ||
+            "Live now!";
+
+        const category =
+            stream.category?.name ||
+            "Unknown";
+
+        const viewers =
+            stream.viewer_count ?? 0;
+
+        const thumbnail =
+            stream.thumbnail?.url ||
+            stream.thumbnail ||
+            null;
+
+        const embed =
+            new EmbedBuilder()
+                .setColor(0x53fc18)
+                .setTitle(
+                    "🔴 iik27 is LIVE!"
+                )
+                .setURL(
+                    `https://kick.com/${username}`
+                )
+                .setDescription(
+                    "**iik27 is currently live on KICK!**"
+                )
+                .addFields(
+                    {
+                        name: "📝 Title",
+                        value:
+                            String(title).slice(
+                                0,
+                                1024
+                            )
+                    },
+                    {
+                        name: "🎮 Category",
+                        value:
+                            String(category).slice(
+                                0,
+                                1024
+                            ),
+                        inline: true
+                    },
+                    {
+                        name: "👀 Viewers",
+                        value:
+                            String(viewers),
+                        inline: true
+                    }
+                )
+                .setTimestamp();
+
+        if (thumbnail) {
+
+            embed.setImage(
+                thumbnail
+            );
+        }
+
+        console.log(
+            `🔴 ${username} is LIVE!`
+        );
+
+        return interaction.editReply({
+            embeds: [embed]
+        });
+
+    } catch (error) {
+
+        console.error(
+            "❌ /livecheck error:",
+            error
+        );
+
+        return interaction.editReply(
+            "❌ Error checking KICK."
+        ).catch(() => {});
+    }
+}
+
+// ==========================================
+// /LIVE
+// ==========================================
+
+async function handleLive(
+    interaction
+) {
+
+    // MUST happen immediately
+    await interaction.deferReply({
+        ephemeral: true
+    });
+
+    try {
+
+        const subcommand =
+            interaction.options.getSubcommand();
+
+        if (
+            subcommand === "setup"
+        ) {
+
+            const link =
+                interaction.options.getString(
+                    "link"
+                );
+
+            const channel =
+                interaction.options.getChannel(
+                    "channel"
+                );
+
+            let url;
+
+            try {
+
+                url = new URL(link);
+
+            } catch {
+
+                return interaction.editReply(
+                    "❌ Invalid KICK URL."
+                );
+            }
+
+            const hostname =
+                url.hostname.toLowerCase();
+
+            if (
+                hostname !== "kick.com" &&
+                hostname !== "www.kick.com"
+            ) {
+
+                return interaction.editReply(
+                    "❌ Please use a KICK URL."
+                );
+            }
+
+            const username =
+                url.pathname
+                    .split("/")
+                    .filter(Boolean)[0];
+
+            if (!username) {
+
+                return interaction.editReply(
+                    "❌ KICK username not found."
+                );
+            }
+
+            const config =
+                await getGuildConfig(
+                    interaction.guildId
+                );
+
+            config.kickLive = {
+                enabled: true,
+                username:
+                    username.toLowerCase(),
+                channelId:
+                    channel.id,
+                lastLive: false
+            };
+
+            await config.save();
+
+            return interaction.editReply(
+                `🔴 **KICK live alerts enabled!**\n\n` +
+                `🎥 Streamer: **${username}**\n` +
+                `📢 Channel: ${channel}\n` +
+                `🔗 https://kick.com/${username}`
+            );
+        }
+
+        if (
+            subcommand === "disable"
+        ) {
+
+            const config =
+                await getGuildConfig(
+                    interaction.guildId
+                );
+
+            if (!config.kickLive) {
+
+                config.kickLive = {
+                    enabled: false,
+                    username: null,
+                    channelId: null,
+                    lastLive: false
+                };
+
+            } else {
+
+                config.kickLive.enabled =
+                    false;
+
+                config.kickLive.lastLive =
+                    false;
+            }
+
+            await config.save();
+
+            return interaction.editReply(
+                "✅ KICK live alerts disabled."
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "❌ /live error:",
+            error
+        );
+
+        return interaction.editReply(
+            "❌ Something went wrong."
+        ).catch(() => {});
+    }
+}
+
+// ==========================================
+// INTERACTIONS
+// ==========================================
+
+client.on(
+    "interactionCreate",
+    async interaction => {
+
+        if (
+            !interaction.isChatInputCommand()
+        ) {
             return;
         }
 
         console.log(
-            `📥 Command received: /${interaction.commandName} from ${interaction.user.tag}`
+            `📥 Received /${interaction.commandName}`
         );
 
-        // BUSINESS
-        if (interaction.commandName === "business") {
-            await businessCommand.execute(interaction);
-            return;
+        if (
+            interaction.commandName ===
+            "live"
+        ) {
+
+            return handleLive(
+                interaction
+            );
         }
 
-        // LIVECHECK
-        if (interaction.commandName === "livecheck") {
-            await interaction.deferReply();
+        if (
+            interaction.commandName ===
+            "livecheck"
+        ) {
 
-            try {
-                const axios = require("axios");
-
-                const username = "iik27";
-
-                const response = await axios.get(
-                    `https://kick.com/api/v2/channels/${encodeURIComponent(username)}`,
-                    {
-                        headers: {
-                            Accept: "application/json",
-                            "User-Agent":
-                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150.0.0.0 Safari/537.36"
-                        },
-                        timeout: 10000
-                    }
-                );
-
-                const livestream =
-                    response.data?.livestream;
-
-                if (livestream) {
-                    await interaction.editReply(
-                        `🔴 **iik27 is LIVE!**\nhttps://kick.com/iik27`
-                    );
-                } else {
-                    await interaction.editReply(
-                        `⚫ **iik27 is currently offline.**`
-                    );
-                }
-            } catch (error) {
-                console.error(
-                    "❌ /livecheck error:",
-                    error.message
-                );
-
-                await interaction.editReply(
-                    "❌ Unable to check KICK right now."
-                );
-            }
-
-            return;
+            return handleLiveCheck(
+                interaction
+            );
         }
 
-        // LIVE
-        if (interaction.commandName === "live") {
-            await interaction.reply({
-                content:
-                    "⚙️ The `/live` configuration command is being loaded."
-            });
+        if (
+            interaction.commandName ===
+            "business"
+        ) {
 
-            return;
-        }
+            if (
+                !businessCommand ||
+                typeof businessCommand.execute !==
+                    "function"
+            ) {
 
-    } catch (error) {
-        console.error(
-            "❌ Interaction error:",
-            error
-        );
-
-        try {
-            if (interaction.deferred) {
-                await interaction.editReply(
-                    "❌ Something went wrong."
-                );
-            } else if (!interaction.replied) {
-                await interaction.reply({
-                    content: "❌ Something went wrong.",
+                return interaction.reply({
+                    content:
+                        "❌ Business command is unavailable.",
                     ephemeral: true
                 });
             }
-        } catch (replyError) {
+
+            try {
+
+                return await businessCommand.execute(
+                    interaction
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "❌ /business error:",
+                    error
+                );
+
+                if (
+                    interaction.replied ||
+                    interaction.deferred
+                ) {
+
+                    return interaction.editReply(
+                        "❌ Something went wrong."
+                    ).catch(() => {});
+
+                }
+
+                return interaction.reply({
+                    content:
+                        "❌ Something went wrong.",
+                    ephemeral: true
+                }).catch(() => {});
+            }
+        }
+    }
+);
+
+// ==========================================
+// READY
+// ==========================================
+
+client.once(
+    "ready",
+    async () => {
+
+        console.log("");
+        console.log(
+            "================================"
+        );
+
+        console.log(
+            "       DISCORD CONNECTED"
+        );
+
+        console.log(
+            "================================"
+        );
+
+        console.log(
+            `✅ Logged in as ${client.user.tag}`
+        );
+
+        console.log(
+            `🌐 Servers: ${client.guilds.cache.size}`
+        );
+
+        // ======================================
+        // STREAMING
+        // ======================================
+
+        client.user.setPresence({
+
+            activities: [
+                {
+                    name:
+                        "Made by iik27",
+
+                    type:
+                        ActivityType.Streaming,
+
+                    url:
+                        "https://kick.com/iik27"
+                }
+            ],
+
+            status: "online"
+        });
+
+        console.log(
+            "🔴 Streaming status enabled!"
+        );
+
+        // ======================================
+        // REGISTER COMMANDS
+        // ======================================
+
+        await registerCommands();
+
+        // ======================================
+        // KICK CHECKER
+        // ======================================
+
+        try {
+
+            startKickChecker(
+                client
+            );
+
+            console.log(
+                "📺 KICK checker started!"
+            );
+
+        } catch (error) {
+
             console.error(
-                "❌ Could not send error response:",
-                replyError
+                "❌ KICK checker failed:",
+                error
             );
         }
     }
-});
+);
 
-// ======================================================
-// DISCORD READY
-// ======================================================
+// ==========================================
+// DISCORD ERRORS
+// ==========================================
 
-client.once("ready", async () => {
-    console.log("========================================");
-    console.log("✅ DISCORD BOT ONLINE");
-    console.log(`🤖 Logged in as: ${client.user.tag}`);
-    console.log(`🆔 Bot ID: ${client.user.id}`);
-    console.log("========================================");
+client.on(
+    "error",
+    error => {
 
-    // IMPORTANT:
-    // Your requested streaming activity.
-    client.user.setPresence({
-        activities: [
-            {
-                name:
-                    "/livecheck, /business",
-
-                type:
-                    ActivityType.Streaming,
-
-                url:
-                    "https://kick.com/iik27"
-            }
-        ],
-
-        status: "online"
-    });
-
-    console.log("🎥 Streaming activity set.");
-
-    // Register slash commands after Discord is ready.
-    try {
-        await registerCommands();
-    } catch (error) {
         console.error(
-            "❌ Slash command registration failed:",
+            "❌ Discord error:",
             error
         );
     }
+);
 
-    // Start KICK checker.
-    try {
-        startKickChecker(client);
+client.on(
+    "warn",
+    warning => {
 
-        console.log(
-            "🟢 KICK checker started."
-        );
-    } catch (error) {
-        console.error(
-            "❌ KICK checker failed to start:",
-            error
+        console.warn(
+            "⚠️ Discord warning:",
+            warning
         );
     }
-});
+);
 
-// ======================================================
-// DISCORD ERROR EVENTS
-// ======================================================
-
-client.on("error", (error) => {
-    console.error("❌ Discord client error:", error);
-});
-
-client.on("warn", (warning) => {
-    console.warn("⚠️ Discord warning:", warning);
-});
-
-client.on("shardError", (error) => {
-    console.error("❌ Discord shard error:", error);
-});
-
-// ======================================================
-// STARTUP TIMEOUT HELPER
-// ======================================================
-
-function timeoutPromise(promise, milliseconds, name) {
-    return Promise.race([
-        promise,
-
-        new Promise((_, reject) => {
-            setTimeout(() => {
-                reject(
-                    new Error(
-                        `${name} timed out after ${milliseconds / 1000} seconds.`
-                    )
-                );
-            }, milliseconds);
-        })
-    ]);
-}
-
-// ======================================================
-// START BOT
-// ======================================================
+// ==========================================
+// LOGIN
+// ==========================================
 
 async function start() {
-    console.log("🚀 Starting Discord bot...");
-
-    // --------------------------------------------------
-    // DATABASE
-    // --------------------------------------------------
 
     try {
-        console.log("🍃 Connecting to MongoDB...");
 
-        await timeoutPromise(
-            connectDatabase(),
-            15000,
-            "MongoDB connection"
-        );
-
-        console.log("✅ MongoDB connected!");
-    } catch (error) {
-        console.error(
-            "❌ MongoDB STARTUP FAILED:"
-        );
-
-        console.error(error);
-
-        console.error(
-            "🛑 Bot startup stopped because MongoDB could not connect."
-        );
-
-        process.exit(1);
-    }
-
-    // --------------------------------------------------
-    // DISCORD
-    // --------------------------------------------------
-
-    try {
-        console.log("🔐 Connecting to Discord...");
-
-        await timeoutPromise(
-            client.login(TOKEN),
-            30000,
-            "Discord login"
+        console.log(
+            "🚀 Starting Discord bot..."
         );
 
         console.log(
-            "✅ Discord login completed."
+            "🍃 Connecting to MongoDB..."
         );
+
+        await connectDatabase();
+
+        console.log(
+            "✅ MongoDB connected!"
+        );
+
+        console.log(
+            "🔐 Connecting to Discord..."
+        );
+
+        // ======================================
+        // LOGIN TIMEOUT
+        // ======================================
+
+        const loginTimeout =
+            setTimeout(() => {
+
+                console.error("");
+                console.error(
+                    "❌ DISCORD LOGIN TIMEOUT"
+                );
+                console.error(
+                    "Discord did not complete the connection within 30 seconds."
+                );
+                console.error(
+                    "Check your DISCORD_TOKEN and Hostinger network configuration."
+                );
+
+                process.exit(1);
+
+            }, 30000);
+
+        try {
+
+            await client.login(
+                TOKEN
+            );
+
+            clearTimeout(
+                loginTimeout
+            );
+
+        } catch (error) {
+
+            clearTimeout(
+                loginTimeout
+            );
+
+            throw error;
+        }
+
     } catch (error) {
+
+        console.error("");
         console.error(
-            "❌ DISCORD STARTUP FAILED:"
+            "================================"
+        );
+
+        console.error(
+            "❌ BOT STARTUP FAILED"
+        );
+
+        console.error(
+            "================================"
         );
 
         console.error(error);
@@ -379,42 +908,8 @@ async function start() {
     }
 }
 
-// ======================================================
-// PROCESS ERRORS
-// ======================================================
-
-process.on("unhandledRejection", (error) => {
-    console.error(
-        "❌ UNHANDLED PROMISE REJECTION:",
-        error
-    );
-});
-
-process.on("uncaughtException", (error) => {
-    console.error(
-        "❌ UNCAUGHT EXCEPTION:",
-        error
-    );
-});
-
-process.on("SIGTERM", () => {
-    console.log("🛑 SIGTERM received.");
-
-    client.destroy();
-
-    process.exit(0);
-});
-
-process.on("SIGINT", () => {
-    console.log("🛑 SIGINT received.");
-
-    client.destroy();
-
-    process.exit(0);
-});
-
-// ======================================================
-// RUN
-// ======================================================
+// ==========================================
+// START
+// ==========================================
 
 start();
